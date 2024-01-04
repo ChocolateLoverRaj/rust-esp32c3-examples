@@ -1,8 +1,6 @@
-# rust-esp32c3-ir-led
+# IR Emitter and Receiver with ESP32-C3 and Rust
 Use an ESP32-C3 to check if an IR receiver is receiving light from an IR emitter
-
-## Pictures
-![Fritzing Bread Board](https://raw.githubusercontent.com/ChocolateLoverRaj/rust-esp32c3-ir-led/b822b45c981f4c29b05a6d421f75c60719482336/digital/Sketch_bb.svg)
+![Emitter and Receiver](https://github.com/ChocolateLoverRaj/rust-esp32c3-ir-led/blob/main/Picture.png?raw=true)
 
 ## Materials Needed
 - ESP32-C3 (I bought [this one](https://www.aliexpress.us/item/3256805941172619.html) and [this one](https://www.aliexpress.us/item/3256805870348476.html))
@@ -12,6 +10,13 @@ Use an ESP32-C3 to check if an IR receiver is receiving light from an IR emitter
 - IR Emitter (I bought [this one](), the 3mm 940nm version)
 - IR Receiver (I bought [this one](), the 3mm version)
 - Resistors - 220Ω, 4.7kΩ, 10kΩ. They don't have to have the exact values as listed.
+
+## Try out the code
+- Clone this repo
+- Install Rust
+- You may need to install some Rust stuff for ESP32-C3
+- `cd digital` or `cd analog`
+- `cargo run`
 
 ## Resources
 This project is based off of these resources
