@@ -2,7 +2,7 @@
 Use an ESP32-C3 to check if an IR receiver is receiving light from an IR emitter
 
 ## Pictures
-TODO
+![Fritzing Bread Board](https://raw.githubusercontent.com/ChocolateLoverRaj/rust-esp32c3-ir-led/b822b45c981f4c29b05a6d421f75c60719482336/digital/Sketch_bb.svg)
 
 ## Materials Needed
 - ESP32-C3 (I bought [this one](https://www.aliexpress.us/item/3256805941172619.html) and [this one](https://www.aliexpress.us/item/3256805870348476.html))
