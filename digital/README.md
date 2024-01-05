@@ -2,7 +2,7 @@
 Get a boolean input of whether the receiver is receiving an IR light or not.
 
 ## Wiring Diagram
-![Fritzing Bread Board](https://raw.githubusercontent.com/ChocolateLoverRaj/rust-esp32c3-ir-led/b822b45c981f4c29b05a6d421f75c60719482336/digital/Sketch_bb.svg)
+![Fritzing Bread Board](./Sketch_bb.svg)
 
 ### Note
 - The actual IR receiver will look like a black LED, not like a circle / square photo-resistor.
