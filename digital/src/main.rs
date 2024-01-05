@@ -15,14 +15,13 @@ async fn main_async() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    println!("Starting 0-input\nThis application is a basic blinky program that turns an LED on and off every 1 second.\n");
-
     // Get all the peripherals
     let peripherals = Peripherals::take().unwrap();
-    // Initialize Pin 8 as an output to drive the LED
+
     let mut receiver_pin = PinDriver::input(peripherals.pins.gpio5.downgrade()).unwrap();
     receiver_pin.set_pull(Pull::Down).unwrap();
 
+    // Initialize Pin 8 as an output to drive the LED
     let mut led_pin = PinDriver::output(peripherals.pins.gpio8).unwrap();
 
     let mut previous = None::<bool>;
@@ -33,7 +32,7 @@ async fn main_async() {
         } else {
             led_pin.set_high().unwrap();
         }
-        if (previous.map_or(true, |previous| is_receiving_light != previous)) {
+        if previous.map_or(true, |previous| is_receiving_light != previous) {
             println!("Receiver receiving IR light: {}", is_receiving_light);
         }
         previous = Some(is_receiving_light);
