@@ -1,3 +1,4 @@
+use async_vl53l0x::AsyncVL53L0x;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::{
     i2c::{I2cConfig, I2cDriver},
@@ -6,7 +7,8 @@ use esp_idf_hal::{
 };
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_println::println;
-use vl53l0x::VL53L0x;
+
+mod async_vl53l0x;
 
 fn main() {
     task::block_on(main_async());
@@ -26,13 +28,17 @@ async fn main_async() {
 
     let config = I2cConfig::new().baudrate(1000.kHz().into());
     let i2c = I2cDriver::new(peripherals.i2c0, sda, scl, &config).unwrap();
-    match VL53L0x::new(i2c) {
-        Ok(mut vl53l0x) => {
-            vl53l0x.set_measurement_timing_budget(20_000).unwrap();
-            vl53l0x.start_continuous(0).unwrap();
+
+    match AsyncVL53L0x::new_with_gpio1(i2c, peripherals.pins.gpio1) {
+        Ok(mut async_vl53l0x) => {
+            async_vl53l0x
+                .vl53l0x
+                .set_measurement_timing_budget(20_000)
+                .unwrap();
+            async_vl53l0x.vl53l0x.start_continuous(0).unwrap();
 
             loop {
-                match vl53l0x.read_range_continuous_millimeters_blocking() {
+                match async_vl53l0x.read_range_mm_async().await {
                     Ok(distance) => {
                         // It seems like if the light does not bounce back, it will report a distance of 8190
                         // Sometimes it keeps switching between ~1250 and 8190, and if 8190 is continuously printed, it's hard to read the actual distance.

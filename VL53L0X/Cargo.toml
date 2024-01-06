@@ -36,6 +36,11 @@ esp-idf-sys = { version = "0.33.7", features = ["binstart"] }
 esp-idf-hal = "0.42.5"
 esp-println = { version = "0.3.1", features = ["esp32c3"] }
 vl53l0x = "0.3.1"
+nb = "1.1.0"
+
+[dependencies.hal]
+version = "0.2"
+package = "embedded-hal"
 
 [build-dependencies]
 embuild = "0.31.3"
