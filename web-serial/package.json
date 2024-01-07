@@ -2,10 +2,8 @@
   "name": "web-serial",
   "private": true,
   "dependencies": {
-    "@types/react": "18.2.47",
-    "@types/react-dom": "18.2.18",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-helmet": "^6.1.0"
   },
   "scripts": {
@@ -15,6 +13,8 @@
     "eject": "react-scripts eject"
   },
   "devDependencies": {
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
     "@types/react-helmet": "^6.1.11",
     "@types/w3c-web-serial": "^1.0.6",
     "react-scripts": "latest"

@@ -1,5 +1,5 @@
 [package]
-name = "esp32c3"
+name = "echo"
 version = "0.1.0"
 authors = [
   "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
