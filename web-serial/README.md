@@ -5,7 +5,7 @@ View `println!()`s with your browser
 - Flash a program that prints to output on your ESP32-C3
 - Connect the ESP32-C3 to your computer
 - Make sure you can access `/dev/ttyACM0` in Linux
-- Open the web page using a Chromium-based browser
+- Open the web page using a Chromium-based browser. A demo is available at https://serial-output.netlify.app/
 
 ## Resources
 - https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API
