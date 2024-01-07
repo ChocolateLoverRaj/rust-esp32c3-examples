@@ -1,4 +1,4 @@
-import { FC, useRef, useState } from 'react';
+import { FC, useLayoutEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet'
 import './style.css';
 
@@ -11,6 +11,12 @@ export const App: FC<{ name: string }> = ({ name }) => {
   const [portData, setPortData] = useState<PortData>()
   const [input, setInput] = useState('')
   const logRef = useRef<HTMLPreElement>(null)
+
+  useLayoutEffect(() => {
+    // Scroll to bottom
+    logRef.current.scrollTo(0, Number.MAX_SAFE_INTEGER)
+
+  }, [portData?.output])
 
   return (
     <>
@@ -38,9 +44,6 @@ export const App: FC<{ name: string }> = ({ name }) => {
                 ...data,
                 output: new Uint8Array([...data.output, ...value])
               }))
-
-              // Scroll to bottom
-              logRef.current.scrollTo(0, Number.MAX_SAFE_INTEGER)
             }
           }}
         >
