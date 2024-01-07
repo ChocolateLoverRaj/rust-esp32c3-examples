@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-
+import { Helmet } from 'react-helmet'
 import './style.css';
 
 export const App: FC<{ name: string }> = ({ name }) => {
@@ -7,6 +7,9 @@ export const App: FC<{ name: string }> = ({ name }) => {
 
   return (
     <>
+      <Helmet>
+        <title>Web Serial Viewer</title>
+      </Helmet>
       <button onClick={async () => {
         const port = await navigator.serial.requestPort()
         await port.open({ baudRate: 460800 })
@@ -21,7 +24,7 @@ export const App: FC<{ name: string }> = ({ name }) => {
           // Hacks
           document.body.scrollTo(0, Number.MAX_SAFE_INTEGER)
         }
-      }}>Connect to ESP32-C3</button><br />
+      }}>Connect to ESP32-C3 (or something else, doesn't really have to be an ESP32-C3)</button><br />
       Output:<br />
       <pre><code>{output !== undefined ? new TextDecoder().decode(output) : <i>No output yet</i>}</code></pre>
     </>
