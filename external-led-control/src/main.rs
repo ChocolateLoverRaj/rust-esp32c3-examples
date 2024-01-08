@@ -1,5 +1,5 @@
 use esp_idf_hal::{
-    gpio::{InterruptType, PinDriver, Pull},
+    gpio::{InterruptType, Level, PinDriver, Pull},
     peripherals::Peripherals,
     task::block_on,
 };
@@ -41,11 +41,18 @@ async fn main_async() {
     button.set_interrupt_type(InterruptType::PosEdge).unwrap();
     button.enable_interrupt().unwrap();
 
+    fn on_to_level(on: bool) -> Level {
+        match on {
+            true => Level::Low,
+            false => Level::High,
+        }
+    }
+
     match nvs.get_u8(tag).unwrap() {
         Some(is_on) => {
             let is_on = is_on == 1;
             println!("Got stored value for is_on: {}", is_on);
-            led.set_level((!is_on).into()).unwrap();
+            led.set_level(on_to_level(is_on)).unwrap();
         }
         None => {
             println!("No stored value for is_on. Storing default value.");
@@ -119,31 +126,25 @@ async fn main_async() {
         .map(|byte| Ok::<[u8; 1], Error>([byte]))
         .into_async_read()
         .lines()
-        .map(|line| Event::Line(line.unwrap()));
+        .filter_map(|line| async {
+            if let Ok(line) = line {
+                match line.as_str() {
+                    "on" => Some(true),
+                    "off" => Some(false),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        });
 
-    let (timer_stream, mut reset_timer) = timer_stream::create_timer_stream(Duration::from_secs(2));
-    let timer_stream = timer_stream.map(|_| Event::Timer);
-
-    #[derive(Debug)]
-    enum Event {
-        Line(String),
-        Timer,
-    }
-
-    let event_streams: Vec<Pin<Box<dyn Stream<Item = Event>>>> =
-        vec![Box::pin(timer_stream), Box::pin(stream)];
+    let event_streams: Vec<Pin<Box<dyn Stream<Item = bool>>>> = vec![Box::pin(stream)];
     let mut event_stream = select_all(event_streams);
 
     loop {
-        let event = event_stream.next().await.unwrap();
-        match event {
-            Event::Line(line) => {
-                reset_timer.send(()).await.unwrap();
-                println!("Got line: {:#?}", line);
-            }
-            Event::Timer => {
-                println!("It's been 2 seconds and I didn't get a line!");
-            }
-        }
+        let on = event_stream.next().await.unwrap();
+        led.set_level(on_to_level(on)).unwrap();
+        println!("Storing new value for is_on: {}", on);
+        nvs.set_u8(tag, on as u8).unwrap();
     }
 }
