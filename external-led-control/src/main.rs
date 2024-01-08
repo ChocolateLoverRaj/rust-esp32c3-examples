@@ -5,8 +5,11 @@ use esp_idf_hal::{
 };
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
-use futures::{prelude::*, stream::select_all};
-use std::{io::Error, pin::Pin, thread, time::Duration};
+use futures::{
+    prelude::*,
+    stream::{select_all, unfold},
+};
+use std::{io::Error, pin::Pin, time::Duration};
 use stdin::get_stdin_stream;
 
 mod async_timeout;
@@ -48,78 +51,27 @@ async fn main_async() {
         }
     }
 
+    let mut is_on;
     match nvs.get_u8(tag).unwrap() {
-        Some(is_on) => {
-            let is_on = is_on == 1;
+        Some(stored_is_on) => {
+            is_on = stored_is_on == 1;
             println!("Got stored value for is_on: {}", is_on);
             led.set_level(on_to_level(is_on)).unwrap();
         }
         None => {
             println!("No stored value for is_on. Storing default value.");
-            nvs.set_u8(tag, 0).unwrap();
+            is_on = false;
+            nvs.set_u8(tag, is_on.into()).unwrap();
             led.set_high().unwrap();
         }
     }
 
-    // loop {
-    //     button.wait_for_rising_edge().await.unwrap();
-    //     led.toggle().unwrap();
-    //     let is_on = led.is_low();
-    //     println!("Storing new value for is_on: {}", is_on);
-    //     nvs.set_u8(tag, is_on as u8).unwrap();
-    // }
-
-    // struct Chunk {
-    //     buf: [u8; 8],
-    //     size: usize,
-    // }
-    // let (mut tx, rx) = channel::<Chunk>(1);
-
-    // let _handle = spawn(move || {
-    //     block_on(async {
-    //         let mut usb = Usb::new();
-    //         loop {
-    //             let mut buf = [0u8; 8];
-    //             let size = usb.read(&mut buf).unwrap();
-    //             if size > 0 {
-    //                 tx.send(Chunk { buf, size }).await.unwrap();
-    //             }
-    //             sleep(Duration::from_millis(10));
-    //         }
-    //     })
-    // });
-
-    // let mut stream = unfold(rx, move |mut rx| async move {
-    //     let chunk = rx.next().await.unwrap();
-    //     if chunk.size > 0 {
-    //         Some((Ok(chunk.buf[..chunk.size].to_owned()), rx))
-    //     } else {
-    //         None
-    //     }
-    // })
-    // .boxed()
-    // .into_async_read()
-    // .lines();
-
-    // let mut usb_stream = UsbStream::new(usb, 1024);
-
-    struct M;
-
-    impl Iterator for M {
-        type Item = Result<[u8; 1], Error>;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            loop {
-                let byte = unsafe { libc::getchar() };
-                if byte != -1 {
-                    return Some(Ok([byte as u8]));
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
-        }
+    #[derive(Debug)]
+    enum Action {
+        On,
+        Off,
+        Toggle,
     }
-
-    // let mut stream = TryStreamExt::into_async_read(stream::iter(M {})).lines();
 
     let (line_stream, _stop_reading_stdin) = get_stdin_stream(Duration::from_millis(10));
     let stream = line_stream
@@ -129,8 +81,9 @@ async fn main_async() {
         .filter_map(|line| async {
             if let Ok(line) = line {
                 match line.as_str() {
-                    "on" => Some(true),
-                    "off" => Some(false),
+                    "on" => Some(Action::On),
+                    "off" => Some(Action::Off),
+                    "toggle" => Some(Action::Toggle),
                     _ => None,
                 }
             } else {
@@ -138,13 +91,28 @@ async fn main_async() {
             }
         });
 
-    let event_streams: Vec<Pin<Box<dyn Stream<Item = bool>>>> = vec![Box::pin(stream)];
+    let button_stream = unfold(button, |mut button| async {
+        button.wait_for_rising_edge().await.unwrap();
+        Some((Action::Toggle, button))
+    });
+
+    let event_streams: Vec<Pin<Box<dyn Stream<Item = Action>>>> =
+        vec![Box::pin(button_stream), Box::pin(stream)];
     let mut event_stream = select_all(event_streams);
 
     loop {
-        let on = event_stream.next().await.unwrap();
-        led.set_level(on_to_level(on)).unwrap();
-        println!("Storing new value for is_on: {}", on);
-        nvs.set_u8(tag, on as u8).unwrap();
+        let action_to_on = |action: Action| -> bool {
+            match action {
+                Action::On => true,
+                Action::Off => false,
+                Action::Toggle => !is_on,
+            }
+        };
+
+        let action = event_stream.next().await.unwrap();
+        is_on = action_to_on(action);
+        led.set_level(on_to_level(is_on)).unwrap();
+        println!("Storing new value for is_on: {}", is_on);
+        nvs.set_u8(tag, is_on as u8).unwrap();
     }
 }
