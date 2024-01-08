@@ -2,7 +2,9 @@
   "cSpell.words": [
     "distros",
     "Fritzing",
+    "getchar",
     "GPIO",
+    "libc",
     "Pico",
     "println"
   ]
