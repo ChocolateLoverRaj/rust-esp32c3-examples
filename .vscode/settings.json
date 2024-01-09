@@ -5,6 +5,7 @@
     "getchar",
     "GPIO",
     "libc",
+    "oneshot",
     "Pico",
     "println"
   ]

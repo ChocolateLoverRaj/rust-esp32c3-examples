@@ -66,7 +66,7 @@ pub fn get_stdin_stream(
                 if byte != -1 {
                     tx.send(byte as u8).await.unwrap();
                 }
-                if stop_rx.try_recv().unwrap().is_some() {
+                if stop_rx.try_recv().is_ok_and(|v| v.is_some()) {
                     break;
                 };
                 sleep(poll_frequency);
