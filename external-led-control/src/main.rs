@@ -35,6 +35,9 @@ async fn main_async() {
     // or else some patches to the runtime implemented by esp-idf-sys might not link properly.
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
+    esp_idf_svc::log::EspLogger
+        .set_target_level("*", log::LevelFilter::Off)
+        .unwrap();
 
     let nvs_default_partition = EspNvsPartition::<NvsDefault>::take().unwrap();
 
