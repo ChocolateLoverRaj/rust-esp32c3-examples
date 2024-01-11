@@ -2,22 +2,34 @@
   "name": "web-serial",
   "private": true,
   "dependencies": {
+    "ansicolor": "^2.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-helmet": "^6.1.0"
+    "react-helmet": "^6.1.0",
+    "throw-empty": "^1.0.0"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "eslint ."
   },
   "devDependencies": {
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
     "@types/react-helmet": "^6.1.11",
+    "@types/throw-empty": "github:ChocolateLoverRaj/DefinitelyTyped#throw-empty-2",
     "@types/w3c-web-serial": "^1.0.6",
-    "react-scripts": "latest"
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "eslint": "^8.56.0",
+    "eslint-config-standard-jsx": "^11.0.0",
+    "eslint-config-standard-with-typescript": "^43.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^15.7.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "react-scripts": "latest",
+    "typescript": "^5.3.3"
   },
   "browserslist": {
     "production": [

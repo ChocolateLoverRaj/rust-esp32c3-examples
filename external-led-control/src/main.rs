@@ -35,16 +35,16 @@ async fn main_async() {
     // or else some patches to the runtime implemented by esp-idf-sys might not link properly.
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
-    esp_idf_svc::log::EspLogger
-        .set_target_level("*", log::LevelFilter::Off)
-        .unwrap();
+    // esp_idf_svc::log::EspLogger
+    //     .set_target_level("*", log::LevelFilter::Off)
+    //     .unwrap();
 
     let nvs_default_partition = EspNvsPartition::<NvsDefault>::take().unwrap();
 
     let namespace = "led_namespace";
     let nvs = match EspNvs::new(nvs_default_partition, namespace, true) {
         Ok(nvs) => {
-            println!("Got namespace {:?} from default partition", namespace);
+            info!("Got namespace {:?} from default partition", namespace);
             nvs
         }
         Err(e) => panic!("Could't get namespace {:?}", e),
@@ -65,11 +65,11 @@ async fn main_async() {
     match nvs.get_u8(tag).unwrap() {
         Some(stored_is_on) => {
             is_on = stored_is_on == 1;
-            println!("Got stored value for is_on: {}", is_on);
+            info!("Got stored value for is_on: {}", is_on);
             led.set_level(on_to_level(is_on)).unwrap();
         }
         None => {
-            println!("No stored value for is_on. Storing default value.");
+            info!("No stored value for is_on. Storing default value.");
             is_on = false;
             nvs.set_u8(tag, is_on.into()).unwrap();
             led.set_high().unwrap();

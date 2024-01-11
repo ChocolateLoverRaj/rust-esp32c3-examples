@@ -1,0 +1,23 @@
+{
+  "root": true,
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "overrides": [
+    {
+      "files": [
+        "*.js",
+        "*.jsx",
+        "*.ts",
+        "*.tsx"
+      ],
+      "extends": [
+        "standard-with-typescript",
+        "standard-jsx"
+      ]
+    }
+  ],
+  "ignorePatterns": [
+    "build"
+  ]
+}
