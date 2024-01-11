@@ -19,7 +19,7 @@
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
     "@types/react-helmet": "^6.1.11",
-    "@types/throw-empty": "github:ChocolateLoverRaj/DefinitelyTyped#throw-empty-2",
+    "@types/throw-empty": "^1.0.0",
     "@types/w3c-web-serial": "^1.0.6",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "eslint": "^8.56.0",
