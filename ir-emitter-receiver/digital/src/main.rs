@@ -1,5 +1,5 @@
 use esp_idf_hal::{
-    gpio::{IOPin, PinDriver, Pull},
+    gpio::{IOPin, InterruptType, PinDriver, Pull},
     peripherals::Peripherals,
     task,
 };
@@ -20,6 +20,10 @@ async fn main_async() {
 
     let mut receiver_pin = PinDriver::input(peripherals.pins.gpio5.downgrade()).unwrap();
     receiver_pin.set_pull(Pull::Down).unwrap();
+    receiver_pin
+        .set_interrupt_type(InterruptType::AnyEdge)
+        .unwrap();
+    receiver_pin.enable_interrupt().unwrap();
 
     // Initialize Pin 8 as an output to drive the LED
     let mut led_pin = PinDriver::output(peripherals.pins.gpio8).unwrap();
@@ -36,5 +40,6 @@ async fn main_async() {
             println!("Receiver receiving IR light: {}", is_receiving_light);
         }
         previous = Some(is_receiving_light);
+        receiver_pin.wait_for_any_edge().await.unwrap();
     }
 }
