@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = [
   "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
 ]
+homepage = "https://github.com/ChocolateLoverRaj/rust-esp32c3-examples/tree/main/sensor-connect"
+repository = "https://github.com/ChocolateLoverRaj/rust-esp32c3-examples"
 edition = "2021"
 resolver = "2"
 rust-version = "1.71"
