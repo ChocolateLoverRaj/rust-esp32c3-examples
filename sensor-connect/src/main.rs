@@ -1,11 +1,15 @@
 use esp32_nimble::{enums::*, utilities::BleUuid, BLEDevice, BLEReturnCode, NimbleProperties};
+use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use random::Source;
-use std::time::SystemTime;
+use std::{thread::park, time::SystemTime};
 
 const INITIAL_PASSKEY: u32 = 123456;
 const RANDOM_BYTES: usize = 1;
 const INITIAL_NAME: &str = "Sensor Connect";
+const NVS_NAMESPACE: &str = "sensor_connect";
+const NVS_TAG_SHORT_NAME: &str = "short_name";
+const SHORT_NAME_MAX_LENGTH: usize = 29;
 
 fn main() {
     // It is necessary to call this function once,
@@ -13,13 +17,27 @@ fn main() {
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    let seed = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
-    let mut source = random::default(seed);
-    let bytes = hex::encode_upper(source.iter().take(RANDOM_BYTES).collect::<Vec<u8>>());
-    let name = format!("{} {}", INITIAL_NAME, bytes);
+    let nvs_default_partition = EspNvsPartition::<NvsDefault>::take().unwrap();
+    let mut nvs = EspNvs::new(nvs_default_partition, NVS_NAMESPACE, true).unwrap();
+    let name = {
+        let mut buf = [0u8; SHORT_NAME_MAX_LENGTH];
+        let saved_name = nvs.get_str(NVS_TAG_SHORT_NAME, &mut buf).unwrap();
+        match saved_name {
+            Some(saved_name) => saved_name.trim_end_matches(char::from(0)).to_owned(),
+            None => {
+                let seed = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos() as u64;
+                let mut source = random::default(seed);
+                let bytes =
+                    hex::encode_upper(source.iter().take(RANDOM_BYTES).collect::<Vec<u8>>());
+                let name = format!("{} {}", INITIAL_NAME, bytes);
+                nvs.set_str(NVS_TAG_SHORT_NAME, name.as_str()).unwrap();
+                name
+            }
+        }
+    };
 
     let device = BLEDevice::take();
     device
@@ -56,7 +74,7 @@ fn main() {
     let ble_advertising = device.get_advertising();
     ble_advertising
         .name(name.as_str())
-        .add_service_uuid(BleUuid::Uuid16(0xABCD))
+        // .add_service_uuid(BleUuid::Uuid16(0xABCD))
         .start()
         .unwrap();
 
