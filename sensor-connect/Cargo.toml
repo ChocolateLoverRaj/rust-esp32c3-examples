@@ -41,6 +41,7 @@ libc = "0.2.152"
 esp32-nimble = "0.5.0"
 random = "0.14.0"
 hex = "0.4.3"
+futures = "0.3.30"
 
 [build-dependencies]
 embuild = "0.31.3"
