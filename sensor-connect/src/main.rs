@@ -9,15 +9,10 @@ use esp32_nimble::{
 use esp_idf_hal::task;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
-use futures::{
-    channel::mpsc::channel, join, stream::select_all, AsyncBufReadExt, Stream, StreamExt,
-    TryStreamExt,
-};
+use futures::{channel::mpsc::channel, join, AsyncBufReadExt, StreamExt, TryStreamExt};
 use log::{info, warn};
 use random::Source;
 use std::{
-    cell::RefCell,
-    pin::Pin,
     rc::Rc,
     sync::RwLock,
     time::{Duration, SystemTime},
@@ -95,7 +90,7 @@ async fn main_async() {
         .set_io_cap(SecurityIOCap::DisplayOnly);
 
     let server = device.get_server();
-    let (mut advertise_tx, advertise_rx) = channel::<()>(0);
+    let (mut advertise_tx, mut advertise_rx) = channel::<()>(0);
     server.on_connect(move |server, desc| {
         ::log::info!("Client connected: {:?}", desc);
 
@@ -112,7 +107,7 @@ async fn main_async() {
     ble_advertising
         .name(name.as_str())
         .add_service_uuid(SERVICE_UUID);
-    let ble_advertising = Rc::new(RefCell::new(ble_advertising));
+    let ble_advertising = Rc::new(RwLock::new(ble_advertising));
 
     let service = server.create_service(SERVICE_UUID);
 
@@ -150,7 +145,7 @@ async fn main_async() {
             .set_value(const_characteristic.value.as_bytes());
     }
 
-    let (mut short_name_tx, short_name_rx) = channel::<String>(0);
+    let (mut short_name_tx, mut short_name_rx) = channel::<String>(0);
     let short_name_characteristic = service.lock().create_characteristic(
         SHORT_NAME_UUID,
         NimbleProperties::READ
@@ -168,9 +163,10 @@ async fn main_async() {
                 .unwrap()
                 .set_str(NVS_TAG_SHORT_NAME, new_name)
                 .unwrap();
-            ble_advertising.borrow_mut().reset().unwrap();
+            ble_advertising.write().unwrap().reset().unwrap();
             ble_advertising
-                .borrow_mut()
+                .write()
+                .unwrap()
                 .name(new_name)
                 .add_service_uuid(SERVICE_UUID)
                 .start()
@@ -194,7 +190,7 @@ async fn main_async() {
             },
         );
 
-    let (mut passkey_tx, passkey_rx) = channel::<u32>(0);
+    let (mut passkey_tx, mut passkey_rx) = channel::<u32>(0);
     let passkey_characteristic = service.lock().create_characteristic(
         PASSKEY_UUID,
         NimbleProperties::READ
@@ -225,26 +221,15 @@ async fn main_async() {
 
     ::log::info!("bonded_addresses: {:?}", device.bonded_addresses().unwrap());
 
-    enum Event {
-        Advertise,
-        ShortName(String),
-        Passkey(u32),
-    }
-
-    let event_streams: Vec<Pin<Box<dyn Stream<Item = Event>>>> = vec![
-        Box::pin(advertise_rx.map(|_| Event::Advertise)),
-        Box::pin(short_name_rx.map(|short_name| Event::ShortName(short_name))),
-        Box::pin(passkey_rx.map(|passkey| Event::Passkey(passkey))),
-    ];
-    let mut event_stream = select_all(event_streams);
-
     let (stdin_stream, stop) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
         .map(|byte| Ok::<[u8; 1], std::io::Error>([byte]))
         .into_async_read()
         .lines();
 
-    ble_advertising.borrow_mut().start().unwrap();
+    ble_advertising.write().unwrap().start().unwrap();
+
+    let device = Rc::new(RwLock::new(device));
 
     join!(
         async {
@@ -306,24 +291,23 @@ async fn main_async() {
             }
         },
         async {
-            loop {
-                let event = event_stream.next().await.unwrap();
-                match event {
-                    Event::Advertise => {
-                        device.get_advertising().start().unwrap();
-                    }
-                    Event::ShortName(new_name) => {
-                        set_short_name(&new_name);
-                    }
-                    Event::Passkey(passkey) => {
-                        device.security().set_passkey(passkey);
-                        nvs.write()
-                            .unwrap()
-                            .set_u32(NVS_TAG_PASSKEY, passkey)
-                            .unwrap();
-                        passkey_characteristic.lock().notify();
-                    }
-                }
+            while let Some(_) = advertise_rx.next().await {
+                device.write().unwrap().get_advertising().start().unwrap();
+            }
+        },
+        async {
+            while let Some(short_name) = short_name_rx.next().await {
+                set_short_name(&short_name);
+            }
+        },
+        async {
+            while let Some(passkey) = passkey_rx.next().await {
+                device.write().unwrap().security().set_passkey(passkey);
+                nvs.write()
+                    .unwrap()
+                    .set_u32(NVS_TAG_PASSKEY, passkey)
+                    .unwrap();
+                passkey_characteristic.lock().notify();
             }
         }
     );
