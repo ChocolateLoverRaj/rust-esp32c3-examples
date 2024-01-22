@@ -1,13 +1,31 @@
+use crate::{
+    info::INFO,
+    stdin::get_stdin_stream,
+    validate_short_name::{validate_short_name, SHORT_NAME_MAX_LENGTH},
+};
 use esp32_nimble::{
     enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode, NimbleProperties,
 };
 use esp_idf_hal::task;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
-use futures::{channel::mpsc::channel, stream::select_all, Stream, StreamExt};
+use futures::{
+    channel::mpsc::channel, join, stream::select_all, AsyncBufReadExt, Stream, StreamExt,
+    TryStreamExt,
+};
 use log::{info, warn};
 use random::Source;
-use std::{pin::Pin, time::SystemTime};
+use std::{
+    cell::RefCell,
+    pin::Pin,
+    rc::Rc,
+    sync::RwLock,
+    time::{Duration, SystemTime},
+};
+
+mod info;
+mod stdin;
+mod validate_short_name;
 
 const INITIAL_PASSKEY: u32 = 123456;
 const RANDOM_BYTES: usize = 1;
@@ -23,9 +41,6 @@ const REPOSITORY_UUID: BleUuid = uuid128!("a2467465-8e29-436e-a0d4-6dd847193c89"
 const AUTHORS_UUID: BleUuid = uuid128!("7ef914f3-9c94-45f9-ab77-26429fae3bc4");
 const SHORT_NAME_UUID: BleUuid = uuid128!("ec67e1ac-cdd0-44bd-9c03-aebc64968b68");
 const PASSKEY_UUID: BleUuid = uuid128!("f0650e70-58ff-4b69-ab99-5d61c6db7e75");
-
-// 31 bytes for advertising, minus 2 for idk, minus 16 for service uuid
-const SHORT_NAME_MAX_LENGTH: usize = 31 - 2 - 16;
 
 fn main() {
     task::block_on(main_async());
@@ -70,6 +85,8 @@ async fn main_async() {
     };
     info!("Passkey is: {:0>6}", passkey);
 
+    let nvs = RwLock::new(nvs);
+
     let device = BLEDevice::take();
     device
         .security()
@@ -91,6 +108,12 @@ async fn main_async() {
         ::log::info!("Client disconnected ({:?})", BLEReturnCode(reason as _));
     });
 
+    let ble_advertising = device.get_advertising();
+    ble_advertising
+        .name(name.as_str())
+        .add_service_uuid(SERVICE_UUID);
+    let ble_advertising = Rc::new(RefCell::new(ble_advertising));
+
     let service = server.create_service(SERVICE_UUID);
 
     struct ConstCharacteristic {
@@ -100,23 +123,23 @@ async fn main_async() {
     let const_characteristics = vec![
         ConstCharacteristic {
             uuid: PACKAGE_NAME_UUID,
-            value: env!("CARGO_PKG_NAME"),
+            value: INFO.name,
         },
         ConstCharacteristic {
             uuid: VERSION_UUID,
-            value: env!("CARGO_PKG_VERSION"),
+            value: INFO.version,
         },
         ConstCharacteristic {
             uuid: HOMEPAGE_UUID,
-            value: env!("CARGO_PKG_HOMEPAGE"),
+            value: INFO.homepage,
         },
         ConstCharacteristic {
             uuid: REPOSITORY_UUID,
-            value: env!("CARGO_PKG_REPOSITORY"),
+            value: INFO.repository,
         },
         ConstCharacteristic {
             uuid: AUTHORS_UUID,
-            value: env!("CARGO_PKG_AUTHORS"),
+            value: INFO.authors,
         },
     ];
     for const_characteristic in const_characteristics {
@@ -136,22 +159,34 @@ async fn main_async() {
             | NimbleProperties::WRITE_AUTHEN
             | NimbleProperties::NOTIFY,
     );
+    let set_short_name = {
+        let short_name_characteristic = short_name_characteristic.clone();
+        let ble_advertising = ble_advertising.clone();
+        let ref nvs = nvs;
+        move |new_name: &str| {
+            nvs.write()
+                .unwrap()
+                .set_str(NVS_TAG_SHORT_NAME, new_name)
+                .unwrap();
+            ble_advertising.borrow_mut().reset().unwrap();
+            ble_advertising
+                .borrow_mut()
+                .name(new_name)
+                .add_service_uuid(SERVICE_UUID)
+                .start()
+                .unwrap();
+            short_name_characteristic.lock().notify();
+        }
+    };
     short_name_characteristic
         .lock()
         .set_value(name.as_bytes())
         .on_write(
             move |args| match String::from_utf8(args.recv_data.to_vec()) {
-                Ok(short_name) => {
-                    if short_name.len() <= SHORT_NAME_MAX_LENGTH {
-                        short_name_tx.try_send(short_name).unwrap()
-                    } else {
-                        args.reject();
-                        warn!(
-                            "New short name too long: {:#?}. Not changing short name.",
-                            short_name
-                        );
-                    }
-                }
+                Ok(short_name) => match validate_short_name(&short_name) {
+                    Ok(_) => short_name_tx.try_send(short_name).unwrap(),
+                    Err(message) => warn!("{}", message),
+                },
                 Err(e) => {
                     args.reject();
                     warn!("Invalid short_name. Error: {:#?}", e);
@@ -188,13 +223,6 @@ async fn main_async() {
             },
         );
 
-    let ble_advertising = device.get_advertising();
-    ble_advertising
-        .name(name.as_str())
-        .add_service_uuid(SERVICE_UUID)
-        .start()
-        .unwrap();
-
     ::log::info!("bonded_addresses: {:?}", device.bonded_addresses().unwrap());
 
     enum Event {
@@ -210,27 +238,93 @@ async fn main_async() {
     ];
     let mut event_stream = select_all(event_streams);
 
-    loop {
-        let event = event_stream.next().await.unwrap();
-        match event {
-            Event::Advertise => {
-                device.get_advertising().start().unwrap();
+    let (stdin_stream, stop) = get_stdin_stream(Duration::from_millis(10));
+    let mut usb_lines_stream = stdin_stream
+        .map(|byte| Ok::<[u8; 1], std::io::Error>([byte]))
+        .into_async_read()
+        .lines();
+
+    ble_advertising.borrow_mut().start().unwrap();
+
+    join!(
+        async {
+            loop {
+                let line = usb_lines_stream.next().await.unwrap().unwrap();
+                let mut inputs = line.split_whitespace();
+                match inputs.next() {
+                    Some(input) => match input {
+                        "info" => match inputs.next() {
+                            None => {
+                                let info_str = serde_json::to_string(&INFO).unwrap();
+                                println!("{}", info_str);
+                            }
+                            Some(_) => {
+                                warn!("Invalid USB command: {:#?}", line);
+                            }
+                        },
+                        "short_name" => match inputs.next() {
+                            Some(input) => match input {
+                                "get" => {
+                                    println!(
+                                        "{:?}",
+                                        String::from_utf8(
+                                            short_name_characteristic
+                                                .lock()
+                                                .value_mut()
+                                                .value()
+                                                .to_vec()
+                                        )
+                                        .unwrap()
+                                    )
+                                }
+                                "set" => {
+                                    let short_name = inputs.collect::<String>();
+                                    match validate_short_name(&short_name) {
+                                        Ok(_) => {
+                                            set_short_name(&short_name);
+                                            println!();
+                                        }
+                                        Err(e) => {
+                                            warn!("{}", e);
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            },
+                            None => {
+                                warn!("Invalid short_name command. Must specify get or set");
+                            }
+                        },
+                        _ => {
+                            warn!("Unknown USB command: {:#?}. Full line: {:#?}", input, line);
+                        }
+                    },
+                    None => {
+                        warn!("Empty USB input: {:#?}", line);
+                    }
+                }
             }
-            Event::ShortName(new_name) => {
-                nvs.set_str(NVS_TAG_SHORT_NAME, &new_name).unwrap();
-                ble_advertising.reset().unwrap();
-                ble_advertising
-                    .name(new_name.as_str())
-                    .add_service_uuid(SERVICE_UUID)
-                    .start()
-                    .unwrap();
-                short_name_characteristic.lock().notify();
-            }
-            Event::Passkey(passkey) => {
-                device.security().set_passkey(passkey);
-                nvs.set_u32(NVS_TAG_PASSKEY, passkey).unwrap();
-                passkey_characteristic.lock().notify();
+        },
+        async {
+            loop {
+                let event = event_stream.next().await.unwrap();
+                match event {
+                    Event::Advertise => {
+                        device.get_advertising().start().unwrap();
+                    }
+                    Event::ShortName(new_name) => {
+                        set_short_name(&new_name);
+                    }
+                    Event::Passkey(passkey) => {
+                        device.security().set_passkey(passkey);
+                        nvs.write()
+                            .unwrap()
+                            .set_u32(NVS_TAG_PASSKEY, passkey)
+                            .unwrap();
+                        passkey_characteristic.lock().notify();
+                    }
+                }
             }
         }
-    }
+    );
 }
