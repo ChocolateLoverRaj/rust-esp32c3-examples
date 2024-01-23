@@ -12,6 +12,7 @@ use esp_idf_sys as _;
 use futures::{channel::mpsc::channel, join, AsyncBufReadExt, StreamExt, TryStreamExt};
 use log::{info, warn};
 use random::Source;
+use serde::{Deserialize, Serialize};
 use std::{
     rc::Rc,
     sync::RwLock,
@@ -90,6 +91,7 @@ async fn main_async() {
         .set_io_cap(SecurityIOCap::DisplayOnly);
 
     let server = device.get_server();
+
     let (mut advertise_tx, mut advertise_rx) = channel::<()>(0);
     server.on_connect(move |server, desc| {
         ::log::info!("Client connected: {:?}", desc);
@@ -104,6 +106,8 @@ async fn main_async() {
     });
 
     let ble_advertising = device.get_advertising();
+    let device = Rc::new(RwLock::new(device));
+
     ble_advertising
         .name(name.as_str())
         .add_service_uuid(SERVICE_UUID);
@@ -171,7 +175,10 @@ async fn main_async() {
                 .add_service_uuid(SERVICE_UUID)
                 .start()
                 .unwrap();
-            short_name_characteristic.lock().notify();
+            short_name_characteristic
+                .lock()
+                .set_value(new_name.as_bytes())
+                .notify();
         }
     };
     short_name_characteristic
@@ -203,7 +210,7 @@ async fn main_async() {
     );
     passkey_characteristic
         .lock()
-        .set_value(&INITIAL_PASSKEY.to_be_bytes())
+        .set_value(&passkey.to_be_bytes())
         .on_write(
             move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data) {
                 Ok(new_passkey) => {
@@ -218,10 +225,26 @@ async fn main_async() {
                 }
             },
         );
+    let set_passkey = {
+        |passkey| {
+            device.write().unwrap().security().set_passkey(passkey);
+            nvs.write()
+                .unwrap()
+                .set_u32(NVS_TAG_PASSKEY, passkey)
+                .unwrap();
+            passkey_characteristic
+                .lock()
+                .set_value(&passkey.to_be_bytes())
+                .notify();
+        }
+    };
 
-    ::log::info!("bonded_addresses: {:?}", device.bonded_addresses().unwrap());
+    ::log::info!(
+        "bonded_addresses: {:?}",
+        device.read().unwrap().bonded_addresses().unwrap()
+    );
 
-    let (stdin_stream, stop) = get_stdin_stream(Duration::from_millis(10));
+    let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
         .map(|byte| Ok::<[u8; 1], std::io::Error>([byte]))
         .into_async_read()
@@ -229,63 +252,70 @@ async fn main_async() {
 
     ble_advertising.write().unwrap().start().unwrap();
 
-    let device = Rc::new(RwLock::new(device));
+    #[derive(Serialize, Deserialize)]
+    enum GetSet<T> {
+        Get,
+        Set(T),
+    }
+
+    #[derive(Serialize, Deserialize)]
+    enum Command {
+        Info,
+        ShortName(GetSet<String>),
+        Passkey(GetSet<u32>),
+    }
 
     join!(
         async {
             loop {
                 let line = usb_lines_stream.next().await.unwrap().unwrap();
-                let mut inputs = line.split_whitespace();
-                match inputs.next() {
-                    Some(input) => match input {
-                        "info" => match inputs.next() {
-                            None => {
-                                let info_str = serde_json::to_string(&INFO).unwrap();
-                                println!("{}", info_str);
-                            }
-                            Some(_) => {
-                                warn!("Invalid USB command: {:#?}", line);
-                            }
-                        },
-                        "short_name" => match inputs.next() {
-                            Some(input) => match input {
-                                "get" => {
-                                    println!(
-                                        "{:?}",
-                                        String::from_utf8(
-                                            short_name_characteristic
-                                                .lock()
-                                                .value_mut()
-                                                .value()
-                                                .to_vec()
-                                        )
-                                        .unwrap()
-                                    )
-                                }
-                                "set" => {
-                                    let short_name = inputs.collect::<String>();
-                                    match validate_short_name(&short_name) {
-                                        Ok(_) => {
-                                            set_short_name(&short_name);
-                                            println!();
-                                        }
-                                        Err(e) => {
-                                            warn!("{}", e);
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            },
-                            None => {
-                                warn!("Invalid short_name command. Must specify get or set");
-                            }
-                        },
-                        _ => {
-                            warn!("Unknown USB command: {:#?}. Full line: {:#?}", input, line);
+
+                let command: serde_json::Result<Command> = serde_json::from_str(&line);
+                match command {
+                    Ok(command) => match command {
+                        Command::Info => {
+                            let info_str = serde_json::to_string(&INFO).unwrap();
+                            println!("{}", info_str);
                         }
+                        Command::ShortName(sub) => match sub {
+                            GetSet::Get => {
+                                println!(
+                                    "{:?}",
+                                    String::from_utf8(
+                                        short_name_characteristic
+                                            .lock()
+                                            .value_mut()
+                                            .value()
+                                            .to_vec()
+                                    )
+                                    .unwrap()
+                                );
+                            }
+                            GetSet::Set(short_name) => match validate_short_name(&short_name) {
+                                Ok(_) => {
+                                    set_short_name(&short_name);
+                                    println!();
+                                }
+                                Err(e) => {
+                                    warn!("{}", e);
+                                }
+                            },
+                        },
+                        Command::Passkey(sub) => match sub {
+                            GetSet::Get => {
+                                let passkey = u32::from_be_bytes(
+                                    <&[u8] as TryInto<[u8; 4]>>::try_into(
+                                        passkey_characteristic.lock().value_mut().value(),
+                                    )
+                                    .unwrap(),
+                                );
+                                println!("{}", serde_json::to_string(&passkey).unwrap());
+                            }
+                            GetSet::Set(passkey) => set_passkey(passkey),
+                        },
                     },
-                    None => {
-                        warn!("Empty USB input: {:#?}", line);
+                    Err(e) => {
+                        println!("Invalid command: {:#?}", e);
                     }
                 }
             }
@@ -302,12 +332,7 @@ async fn main_async() {
         },
         async {
             while let Some(passkey) = passkey_rx.next().await {
-                device.write().unwrap().security().set_passkey(passkey);
-                nvs.write()
-                    .unwrap()
-                    .set_u32(NVS_TAG_PASSKEY, passkey)
-                    .unwrap();
-                passkey_characteristic.lock().notify();
+                set_passkey(passkey);
             }
         }
     );
