@@ -12,7 +12,10 @@ use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use futures::{channel::mpsc::channel, join, StreamExt};
 use log::{info, warn};
-use std::{rc::Rc, sync::RwLock};
+use std::{
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 
 mod const_characteristics;
 mod info;
@@ -82,7 +85,7 @@ async fn main_async() {
     ble_advertising
         .name(name.as_str())
         .add_service_uuid(SERVICE_UUID);
-    let ble_advertising = Rc::new(RwLock::new(ble_advertising));
+    let ble_advertising = Arc::new(RwLock::new(ble_advertising));
 
     let service = server.create_service(SERVICE_UUID);
 
@@ -126,7 +129,7 @@ async fn main_async() {
         .on_write(
             move |args| match String::from_utf8(args.recv_data.to_vec()) {
                 Ok(short_name) => match validate_short_name(&short_name) {
-                    Ok(_) => short_name_tx.try_send(short_name).unwrap(),
+                    Ok(_) => set_short_name(&short_name),
                     Err(message) => warn!("{}", message),
                 },
                 Err(e) => {
