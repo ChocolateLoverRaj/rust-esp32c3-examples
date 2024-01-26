@@ -12,7 +12,10 @@ use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use futures::{channel::mpsc::channel, join, StreamExt};
 use log::{info, warn};
-use std::{rc::Rc, sync::RwLock};
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex, RwLock},
+};
 
 mod const_characteristics;
 mod info;
@@ -52,7 +55,7 @@ async fn main_async() {
     };
     info!("Passkey is: {:0>6}", passkey);
 
-    let nvs = RwLock::new(nvs);
+    let nvs = Arc::new(RwLock::new(nvs));
 
     let device = BLEDevice::take();
     device
@@ -82,13 +85,11 @@ async fn main_async() {
     ble_advertising
         .name(name.as_str())
         .add_service_uuid(SERVICE_UUID);
-    let ble_advertising = Rc::new(RwLock::new(ble_advertising));
 
     let service = server.create_service(SERVICE_UUID);
 
     create_const_characteristics(&service);
 
-    let (mut short_name_tx, mut short_name_rx) = channel::<String>(0);
     let short_name_characteristic = service.lock().create_characteristic(
         SHORT_NAME_UUID,
         NimbleProperties::READ
@@ -99,17 +100,16 @@ async fn main_async() {
     );
     let set_short_name = {
         let short_name_characteristic = short_name_characteristic.clone();
-        let ble_advertising = ble_advertising.clone();
-        let ref nvs = nvs;
+        let nvs = nvs.clone();
+
         move |new_name: &str| {
             nvs.write()
                 .unwrap()
                 .set_str(NVS_TAG_SHORT_NAME, new_name)
                 .unwrap();
-            ble_advertising.write().unwrap().reset().unwrap();
+            let ble_advertising = BLEDevice::take().get_advertising();
+            ble_advertising.reset().unwrap();
             ble_advertising
-                .write()
-                .unwrap()
                 .name(new_name)
                 .add_service_uuid(SERVICE_UUID)
                 .start()
@@ -120,21 +120,27 @@ async fn main_async() {
                 .notify();
         }
     };
-    short_name_characteristic
-        .lock()
-        .set_value(name.as_bytes())
-        .on_write(
-            move |args| match String::from_utf8(args.recv_data.to_vec()) {
-                Ok(short_name) => match validate_short_name(&short_name) {
-                    Ok(_) => short_name_tx.try_send(short_name).unwrap(),
-                    Err(message) => warn!("{}", message),
+    let set_short_name = Arc::new(Mutex::new(set_short_name));
+    {
+        let set_short_name = set_short_name.clone();
+        short_name_characteristic
+            .lock()
+            .set_value(name.as_bytes())
+            .on_write(
+                move |args| match String::from_utf8(args.recv_data.to_vec()) {
+                    Ok(short_name) => match validate_short_name(&short_name) {
+                        Ok(_) => {
+                            set_short_name.lock().unwrap()(&short_name);
+                        }
+                        Err(message) => warn!("{}", message),
+                    },
+                    Err(e) => {
+                        args.reject();
+                        warn!("Invalid short_name. Error: {:#?}", e);
+                    }
                 },
-                Err(e) => {
-                    args.reject();
-                    warn!("Invalid short_name. Error: {:#?}", e);
-                }
-            },
-        );
+            );
+    }
 
     let (mut passkey_tx, mut passkey_rx) = channel::<u32>(0);
     let passkey_characteristic = service.lock().create_characteristic(
@@ -193,11 +199,6 @@ async fn main_async() {
         async {
             while let Some(_) = advertise_rx.next().await {
                 device.write().unwrap().get_advertising().start().unwrap();
-            }
-        },
-        async {
-            while let Some(short_name) = short_name_rx.next().await {
-                set_short_name(&short_name);
             }
         },
         async {

@@ -9,7 +9,7 @@ use crate::{info::INFO, stdin::get_stdin_stream, validate_short_name::validate_s
 
 pub async fn process_stdin(
     short_name_characteristic: &Arc<Mutex<BLECharacteristic>>,
-    set_short_name: &impl Fn(&str),
+    set_short_name: &Arc<std::sync::Mutex<impl Fn(&str)>>,
     passkey_characteristic: &Arc<Mutex<BLECharacteristic>>,
     set_passkey: &impl Fn(u32),
 ) {
@@ -58,7 +58,7 @@ pub async fn process_stdin(
                     }
                     GetSet::Set(short_name) => match validate_short_name(&short_name) {
                         Ok(_) => {
-                            set_short_name(&short_name);
+                            set_short_name.lock().unwrap()(&short_name);
                             println!();
                         }
                         Err(e) => {
