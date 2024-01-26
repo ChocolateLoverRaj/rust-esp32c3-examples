@@ -11,7 +11,7 @@ pub async fn process_stdin(
     short_name_characteristic: &Arc<Mutex<BLECharacteristic>>,
     set_short_name: &Arc<std::sync::Mutex<impl Fn(&str)>>,
     passkey_characteristic: &Arc<Mutex<BLECharacteristic>>,
-    set_passkey: &impl Fn(u32),
+    set_passkey: &Arc<std::sync::Mutex<impl Fn(u32)>>,
 ) {
     let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
@@ -76,7 +76,7 @@ pub async fn process_stdin(
                         );
                         println!("{}", serde_json::to_string(&passkey).unwrap());
                     }
-                    GetSet::Set(passkey) => set_passkey(passkey),
+                    GetSet::Set(passkey) => set_passkey.lock().unwrap()(passkey),
                 },
             },
             Err(e) => {

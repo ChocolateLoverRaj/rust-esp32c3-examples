@@ -10,12 +10,8 @@ use esp32_nimble::{
 use esp_idf_hal::task;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
-use futures::{channel::mpsc::channel, join, StreamExt};
 use log::{info, warn};
-use std::{
-    rc::Rc,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::sync::{Arc, Mutex, RwLock};
 
 mod const_characteristics;
 mod info;
@@ -66,13 +62,12 @@ async fn main_async() {
 
     let server = device.get_server();
 
-    let (mut advertise_tx, mut advertise_rx) = channel::<()>(0);
     server.on_connect(move |server, desc| {
         ::log::info!("Client connected: {:?}", desc);
 
         if server.connected_count() < (esp_idf_sys::CONFIG_BT_NIMBLE_MAX_CONNECTIONS as _) {
             ::log::info!("Multi-connect support: start advertising");
-            advertise_tx.try_send(()).unwrap();
+            BLEDevice::take().get_advertising().start().unwrap();
         }
     });
     server.on_disconnect(|_desc, reason| {
@@ -80,7 +75,6 @@ async fn main_async() {
     });
 
     let ble_advertising = device.get_advertising();
-    let device = Rc::new(RwLock::new(device));
 
     ble_advertising
         .name(name.as_str())
@@ -142,7 +136,6 @@ async fn main_async() {
             );
     }
 
-    let (mut passkey_tx, mut passkey_rx) = channel::<u32>(0);
     let passkey_characteristic = service.lock().create_characteristic(
         PASSKEY_UUID,
         NimbleProperties::READ
@@ -153,58 +146,56 @@ async fn main_async() {
             | NimbleProperties::WRITE_AUTHEN
             | NimbleProperties::NOTIFY,
     );
-    passkey_characteristic
-        .lock()
-        .set_value(&passkey.to_be_bytes())
-        .on_write(
-            move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data) {
-                Ok(new_passkey) => {
-                    let new_passkey = u32::from_be_bytes(new_passkey);
-                    passkey_tx.try_send(new_passkey).unwrap();
-                }
-                Err(e) => {
-                    warn!(
+    let set_passkey = Arc::new(Mutex::new({
+        let nvs = nvs.clone();
+        let passkey_characteristic = passkey_characteristic.clone();
+
+        {
+            move |passkey| {
+                BLEDevice::take().security().set_passkey(passkey);
+                nvs.write()
+                    .unwrap()
+                    .set_u32(NVS_TAG_PASSKEY, passkey)
+                    .unwrap();
+                passkey_characteristic
+                    .lock()
+                    .set_value(&passkey.to_be_bytes())
+                    .notify();
+            }
+        }
+    }));
+    {
+        let set_passkey = set_passkey.clone();
+
+        passkey_characteristic
+            .lock()
+            .set_value(&passkey.to_be_bytes())
+            .on_write(
+                move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data) {
+                    Ok(new_passkey) => {
+                        let new_passkey = u32::from_be_bytes(new_passkey);
+                        set_passkey.lock().unwrap()(new_passkey);
+                    }
+                    Err(e) => {
+                        warn!(
                         "Pass key was not changed because it had an invalid length. Error: {:#?}",
                         e
                     );
-                }
-            },
-        );
-    let set_passkey = {
-        |passkey| {
-            device.write().unwrap().security().set_passkey(passkey);
-            nvs.write()
-                .unwrap()
-                .set_u32(NVS_TAG_PASSKEY, passkey)
-                .unwrap();
-            passkey_characteristic
-                .lock()
-                .set_value(&passkey.to_be_bytes())
-                .notify();
-        }
-    };
+                    }
+                },
+            );
+    }
 
     ::log::info!(
         "bonded_addresses: {:?}",
-        device.read().unwrap().bonded_addresses().unwrap()
+        BLEDevice::take().bonded_addresses().unwrap()
     );
 
-    join!(
-        process_stdin(
-            &short_name_characteristic,
-            &set_short_name,
-            &passkey_characteristic,
-            &set_passkey
-        ),
-        async {
-            while let Some(_) = advertise_rx.next().await {
-                device.write().unwrap().get_advertising().start().unwrap();
-            }
-        },
-        async {
-            while let Some(passkey) = passkey_rx.next().await {
-                set_passkey(passkey);
-            }
-        }
-    );
+    process_stdin(
+        &short_name_characteristic,
+        &set_short_name,
+        &passkey_characteristic,
+        &set_passkey,
+    )
+    .await;
 }
