@@ -1,8 +1,6 @@
 use crate::{
-    const_characteristics::create_const_characteristics,
-    process_stdin::process_stdin,
-    short_name::{get_short_name, NVS_TAG_SHORT_NAME},
-    validate_short_name::validate_short_name,
+    const_characteristics::create_const_characteristics, get_short_name::get_short_name,
+    process_stdin::process_stdin, short_name_characteristic::ShortNameCharacteristic,
 };
 use esp32_nimble::{
     enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode, NimbleProperties,
@@ -14,9 +12,10 @@ use log::{info, warn};
 use std::sync::{Arc, Mutex, RwLock};
 
 mod const_characteristics;
+mod get_short_name;
 mod info;
 mod process_stdin;
-mod short_name;
+mod short_name_characteristic;
 mod stdin;
 mod validate_short_name;
 
@@ -84,58 +83,7 @@ async fn main_async() {
 
     create_const_characteristics(&service);
 
-    let short_name_characteristic = service.lock().create_characteristic(
-        SHORT_NAME_UUID,
-        NimbleProperties::READ
-            | NimbleProperties::WRITE
-            | NimbleProperties::WRITE_ENC
-            | NimbleProperties::WRITE_AUTHEN
-            | NimbleProperties::NOTIFY,
-    );
-    let set_short_name = {
-        let short_name_characteristic = short_name_characteristic.clone();
-        let nvs = nvs.clone();
-
-        move |new_name: &str| {
-            nvs.write()
-                .unwrap()
-                .set_str(NVS_TAG_SHORT_NAME, new_name)
-                .unwrap();
-            let ble_advertising = BLEDevice::take().get_advertising();
-            ble_advertising.reset().unwrap();
-            ble_advertising
-                .name(new_name)
-                .add_service_uuid(SERVICE_UUID)
-                .start()
-                .unwrap();
-            short_name_characteristic
-                .lock()
-                .set_value(new_name.as_bytes())
-                .notify();
-        }
-    };
-    let set_short_name = Arc::new(Mutex::new(set_short_name));
-    {
-        let set_short_name = set_short_name.clone();
-        short_name_characteristic
-            .lock()
-            .set_value(name.as_bytes())
-            .on_write(
-                move |args| match String::from_utf8(args.recv_data.to_vec()) {
-                    Ok(short_name) => match validate_short_name(&short_name) {
-                        Ok(_) => {
-                            set_short_name.lock().unwrap()(&short_name);
-                        }
-                        Err(message) => warn!("{}", message),
-                    },
-                    Err(e) => {
-                        args.reject();
-                        warn!("Invalid short_name. Error: {:#?}", e);
-                    }
-                },
-            );
-    }
-
+    let mut short_name_characteristic = ShortNameCharacteristic::new(&service, &name, nvs.clone());
     let passkey_characteristic = service.lock().create_characteristic(
         PASSKEY_UUID,
         NimbleProperties::READ
@@ -191,9 +139,10 @@ async fn main_async() {
         BLEDevice::take().bonded_addresses().unwrap()
     );
 
+    ble_advertising.start().unwrap();
+
     process_stdin(
-        &short_name_characteristic,
-        &set_short_name,
+        &mut short_name_characteristic,
         &passkey_characteristic,
         &set_passkey,
     )

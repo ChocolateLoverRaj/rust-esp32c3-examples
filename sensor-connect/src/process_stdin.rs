@@ -5,11 +5,13 @@ use futures::{AsyncBufReadExt, StreamExt, TryStreamExt};
 use log::warn;
 use serde::{Deserialize, Serialize};
 
-use crate::{info::INFO, stdin::get_stdin_stream, validate_short_name::validate_short_name};
+use crate::{
+    info::INFO, short_name_characteristic::ShortNameCharacteristic, stdin::get_stdin_stream,
+    validate_short_name::validate_short_name,
+};
 
 pub async fn process_stdin(
-    short_name_characteristic: &Arc<Mutex<BLECharacteristic>>,
-    set_short_name: &Arc<std::sync::Mutex<impl Fn(&str)>>,
+    short_name_characteristic: &mut ShortNameCharacteristic,
     passkey_characteristic: &Arc<Mutex<BLECharacteristic>>,
     set_passkey: &Arc<std::sync::Mutex<impl Fn(u32)>>,
 ) {
@@ -44,21 +46,11 @@ pub async fn process_stdin(
                 }
                 Command::ShortName(sub) => match sub {
                     GetSet::Get => {
-                        println!(
-                            "{:?}",
-                            String::from_utf8(
-                                short_name_characteristic
-                                    .lock()
-                                    .value_mut()
-                                    .value()
-                                    .to_vec()
-                            )
-                            .unwrap()
-                        );
+                        println!("{:?}", short_name_characteristic.get());
                     }
                     GetSet::Set(short_name) => match validate_short_name(&short_name) {
                         Ok(_) => {
-                            set_short_name.lock().unwrap()(&short_name);
+                            short_name_characteristic.set(&short_name);
                             println!();
                         }
                         Err(e) => {
