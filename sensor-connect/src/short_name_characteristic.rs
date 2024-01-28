@@ -2,8 +2,10 @@ use std::sync::{Arc, RwLock};
 
 use esp32_nimble::{
     utilities::mutex::Mutex, BLECharacteristic, BLEDevice, BLEService, NimbleProperties,
+    OnWriteArgs,
 };
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
+use futures::channel::mpsc::Sender;
 use log::warn;
 
 use crate::{
@@ -15,6 +17,7 @@ use crate::{
 pub struct ShortNameCharacteristic {
     characteristic: Arc<Mutex<BLECharacteristic>>,
     nvs: Arc<RwLock<EspNvs<NvsDefault>>>,
+    on_change_sender: Sender<()>,
 }
 
 impl ShortNameCharacteristic {
@@ -22,6 +25,7 @@ impl ShortNameCharacteristic {
         service: &Arc<Mutex<BLEService>>,
         initial_short_name: &str,
         nvs: Arc<RwLock<EspNvs<NvsDefault>>>,
+        on_change_sender: Sender<()>,
     ) -> ShortNameCharacteristic {
         let short_name_characteristic = service.lock().create_characteristic(
             SHORT_NAME_UUID,
@@ -35,6 +39,7 @@ impl ShortNameCharacteristic {
         let characteristic = Self {
             characteristic: short_name_characteristic.clone(),
             nvs,
+            on_change_sender,
         };
 
         {
@@ -46,7 +51,7 @@ impl ShortNameCharacteristic {
                     move |args| match String::from_utf8(args.recv_data.to_vec()) {
                         Ok(short_name) => match validate_short_name(&short_name) {
                             Ok(_) => {
-                                characteristic.set(&short_name);
+                                characteristic.set_in_on_write(&short_name, args);
                             }
                             Err(message) => warn!("{}", message),
                         },
@@ -65,9 +70,8 @@ impl ShortNameCharacteristic {
         String::from_utf8(self.characteristic.lock().value_mut().value().to_vec()).unwrap()
     }
 
-    pub fn set(&mut self, new_name: &str) {
-        let short_name_characteristic = self.characteristic.clone();
-
+    //// Doesn't call notify or change value
+    fn set(&mut self, new_name: &str) {
         self.nvs
             .write()
             .unwrap()
@@ -80,7 +84,17 @@ impl ShortNameCharacteristic {
             .add_service_uuid(SERVICE_UUID)
             .start()
             .unwrap();
-        short_name_characteristic
+    }
+
+    pub fn set_in_on_write(&mut self, new_name: &str, on_write_args: &mut OnWriteArgs) {
+        self.set(new_name);
+        on_write_args.notify();
+        self.on_change_sender.try_send(()).unwrap();
+    }
+
+    pub fn set_externally(&mut self, new_name: &str) {
+        self.set(new_name);
+        self.characteristic
             .lock()
             .set_value(new_name.as_bytes())
             .notify();

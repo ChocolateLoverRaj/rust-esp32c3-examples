@@ -38,7 +38,7 @@ esp-idf-sys = { version = "0.33.7", features = ["binstart"] }
 esp-idf-hal = "0.42.5"
 esp-println = { version = "0.3.1", features = ["esp32c3"] }
 libc = "0.2.152"
-esp32-nimble = { git = "https://github.com/taks/esp32-nimble", rev = "02e47f71a2a96660563ea7fc67686deac488b35b" }
+esp32-nimble = { git = "https://github.com/taks/esp32-nimble", rev = "a815d34593bcffb1113ba4144e65143de672ad0f" }
 random = "0.14.0"
 hex = "0.4.3"
 futures = "0.3.30"

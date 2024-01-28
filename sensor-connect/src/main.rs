@@ -8,6 +8,7 @@ use esp32_nimble::{
 use esp_idf_hal::task;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
+use futures::channel::mpsc::channel;
 use log::{info, warn};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -81,9 +82,12 @@ async fn main_async() {
 
     let service = server.create_service(SERVICE_UUID);
 
+    let (tx, short_name_change_rx) = channel::<()>(0);
+
     create_const_characteristics(&service);
 
-    let mut short_name_characteristic = ShortNameCharacteristic::new(&service, &name, nvs.clone());
+    let mut short_name_characteristic =
+        ShortNameCharacteristic::new(&service, &name, nvs.clone(), tx);
     let passkey_characteristic = service.lock().create_characteristic(
         PASSKEY_UUID,
         NimbleProperties::READ
@@ -145,6 +149,7 @@ async fn main_async() {
         &mut short_name_characteristic,
         &passkey_characteristic,
         &set_passkey,
+        short_name_change_rx,
     )
     .await;
 }
