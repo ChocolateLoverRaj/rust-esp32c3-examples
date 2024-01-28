@@ -1,20 +1,20 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use esp32_nimble::{utilities::mutex::Mutex, BLECharacteristic};
 use futures::{channel::mpsc::Receiver, join, AsyncBufReadExt, StreamExt, TryStreamExt};
 use log::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    info::INFO, short_name_characteristic::ShortNameCharacteristic, stdin::get_stdin_stream,
+    info::INFO, passkey_characteristic::PasskeyCharacteristic,
+    short_name_characteristic::ShortNameCharacteristic, stdin::get_stdin_stream,
     validate_short_name::validate_short_name,
 };
 
 pub async fn process_stdin(
     short_name_characteristic: &mut ShortNameCharacteristic,
-    passkey_characteristic: &Arc<Mutex<BLECharacteristic>>,
-    set_passkey: &Arc<std::sync::Mutex<impl Fn(u32)>>,
     mut short_name_change_receiver: Receiver<()>,
+    passkey_characteristic: &mut PasskeyCharacteristic,
+    mut passkey_change_receiver: Receiver<()>,
 ) {
     let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
@@ -38,6 +38,7 @@ pub async fn process_stdin(
     #[derive(Serialize, Deserialize)]
     enum Message {
         ShortNameChange,
+        PasskeyChange,
     }
 
     join!(
@@ -47,6 +48,15 @@ pub async fn process_stdin(
                 println!(
                     "{}",
                     serde_json::to_string(&Message::ShortNameChange).unwrap()
+                );
+            }
+        },
+        async {
+            loop {
+                passkey_change_receiver.next().await.unwrap();
+                println!(
+                    "{}",
+                    serde_json::to_string(&Message::PasskeyChange).unwrap()
                 );
             }
         },
@@ -77,15 +87,12 @@ pub async fn process_stdin(
                         },
                         Command::Passkey(sub) => match sub {
                             GetSet::Get => {
-                                let passkey = u32::from_be_bytes(
-                                    <&[u8] as TryInto<[u8; 4]>>::try_into(
-                                        passkey_characteristic.lock().value_mut().value(),
-                                    )
-                                    .unwrap(),
+                                println!(
+                                    "{}",
+                                    serde_json::to_string(&passkey_characteristic.get()).unwrap()
                                 );
-                                println!("{}", serde_json::to_string(&passkey).unwrap());
                             }
-                            GetSet::Set(passkey) => set_passkey.lock().unwrap()(passkey),
+                            GetSet::Set(passkey) => passkey_characteristic.set_externally(passkey),
                         },
                     },
                     Err(e) => {

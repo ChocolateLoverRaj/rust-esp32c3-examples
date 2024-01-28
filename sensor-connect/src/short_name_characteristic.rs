@@ -86,7 +86,7 @@ impl ShortNameCharacteristic {
             .unwrap();
     }
 
-    pub fn set_in_on_write(&mut self, new_name: &str, on_write_args: &mut OnWriteArgs) {
+    fn set_in_on_write(&mut self, new_name: &str, on_write_args: &mut OnWriteArgs) {
         self.set(new_name);
         on_write_args.notify();
         self.on_change_sender.try_send(()).unwrap();
@@ -98,5 +98,6 @@ impl ShortNameCharacteristic {
             .lock()
             .set_value(new_name.as_bytes())
             .notify();
+        self.on_change_sender.try_send(()).unwrap();
     }
 }

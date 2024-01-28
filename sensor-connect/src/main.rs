@@ -1,20 +1,20 @@
 use crate::{
     const_characteristics::create_const_characteristics, get_short_name::get_short_name,
-    process_stdin::process_stdin, short_name_characteristic::ShortNameCharacteristic,
+    passkey_characteristic::PasskeyCharacteristic, process_stdin::process_stdin,
+    short_name_characteristic::ShortNameCharacteristic,
 };
-use esp32_nimble::{
-    enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode, NimbleProperties,
-};
+use esp32_nimble::{enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode};
 use esp_idf_hal::task;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use futures::channel::mpsc::channel;
-use log::{info, warn};
-use std::sync::{Arc, Mutex, RwLock};
+use log::info;
+use std::sync::{Arc, RwLock};
 
 mod const_characteristics;
 mod get_short_name;
 mod info;
+mod passkey_characteristic;
 mod process_stdin;
 mod short_name_characteristic;
 mod stdin;
@@ -39,8 +39,8 @@ async fn main_async() {
 
     let nvs_default_partition = EspNvsPartition::<NvsDefault>::take().unwrap();
     let mut nvs = EspNvs::new(nvs_default_partition, NVS_NAMESPACE, true).unwrap();
-    let name = get_short_name(&mut nvs);
-    let passkey = {
+    let initial_name = get_short_name(&mut nvs);
+    let initial_passkey = {
         match nvs.get_u32(NVS_TAG_PASSKEY).unwrap() {
             Some(stored_passkey) => stored_passkey,
             None => {
@@ -49,7 +49,7 @@ async fn main_async() {
             }
         }
     };
-    info!("Passkey is: {:0>6}", passkey);
+    info!("Passkey is: {:0>6}", initial_passkey);
 
     let nvs = Arc::new(RwLock::new(nvs));
 
@@ -57,7 +57,7 @@ async fn main_async() {
     device
         .security()
         .set_auth(AuthReq::all())
-        .set_passkey(passkey)
+        .set_passkey(initial_passkey)
         .set_io_cap(SecurityIOCap::DisplayOnly);
 
     let server = device.get_server();
@@ -77,66 +77,20 @@ async fn main_async() {
     let ble_advertising = device.get_advertising();
 
     ble_advertising
-        .name(name.as_str())
+        .name(initial_name.as_str())
         .add_service_uuid(SERVICE_UUID);
 
     let service = server.create_service(SERVICE_UUID);
 
-    let (tx, short_name_change_rx) = channel::<()>(0);
-
     create_const_characteristics(&service);
 
+    let (short_name_change_tx, short_name_change_rx) = channel::<()>(0);
     let mut short_name_characteristic =
-        ShortNameCharacteristic::new(&service, &name, nvs.clone(), tx);
-    let passkey_characteristic = service.lock().create_characteristic(
-        PASSKEY_UUID,
-        NimbleProperties::READ
-            | NimbleProperties::READ_ENC
-            | NimbleProperties::READ_AUTHEN
-            | NimbleProperties::WRITE
-            | NimbleProperties::WRITE_ENC
-            | NimbleProperties::WRITE_AUTHEN
-            | NimbleProperties::NOTIFY,
-    );
-    let set_passkey = Arc::new(Mutex::new({
-        let nvs = nvs.clone();
-        let passkey_characteristic = passkey_characteristic.clone();
+        ShortNameCharacteristic::new(&service, &initial_name, nvs.clone(), short_name_change_tx);
 
-        {
-            move |passkey| {
-                BLEDevice::take().security().set_passkey(passkey);
-                nvs.write()
-                    .unwrap()
-                    .set_u32(NVS_TAG_PASSKEY, passkey)
-                    .unwrap();
-                passkey_characteristic
-                    .lock()
-                    .set_value(&passkey.to_be_bytes())
-                    .notify();
-            }
-        }
-    }));
-    {
-        let set_passkey = set_passkey.clone();
-
-        passkey_characteristic
-            .lock()
-            .set_value(&passkey.to_be_bytes())
-            .on_write(
-                move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data) {
-                    Ok(new_passkey) => {
-                        let new_passkey = u32::from_be_bytes(new_passkey);
-                        set_passkey.lock().unwrap()(new_passkey);
-                    }
-                    Err(e) => {
-                        warn!(
-                        "Pass key was not changed because it had an invalid length. Error: {:#?}",
-                        e
-                    );
-                    }
-                },
-            );
-    }
+    let (passkey_change_tx, passkey_change_rx) = channel::<()>(0);
+    let mut passkey_characteristic =
+        PasskeyCharacteristic::new(&service, initial_passkey, nvs.clone(), passkey_change_tx);
 
     ::log::info!(
         "bonded_addresses: {:?}",
@@ -147,9 +101,9 @@ async fn main_async() {
 
     process_stdin(
         &mut short_name_characteristic,
-        &passkey_characteristic,
-        &set_passkey,
         short_name_change_rx,
+        &mut passkey_characteristic,
+        passkey_change_rx,
     )
     .await;
 }
