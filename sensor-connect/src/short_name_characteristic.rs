@@ -1,8 +1,8 @@
 use std::sync::{Arc, RwLock};
 
 use esp32_nimble::{
-    utilities::mutex::Mutex, BLECharacteristic, BLEDevice, BLEService, NimbleProperties,
-    OnWriteArgs,
+    utilities::{mutex::Mutex, BleUuid},
+    uuid128, BLECharacteristic, BLEDevice, BLEService, NimbleProperties, OnWriteArgs,
 };
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use futures::channel::mpsc::Sender;
@@ -10,8 +10,9 @@ use log::warn;
 
 use crate::{
     get_short_name::NVS_TAG_SHORT_NAME, validate_short_name::validate_short_name, SERVICE_UUID,
-    SHORT_NAME_UUID,
 };
+
+const SHORT_NAME_UUID: BleUuid = uuid128!("ec67e1ac-cdd0-44bd-9c03-aebc64968b68");
 
 #[derive(Clone)]
 pub struct ShortNameCharacteristic {
@@ -70,7 +71,7 @@ impl ShortNameCharacteristic {
         String::from_utf8(self.characteristic.lock().value_mut().value().to_vec()).unwrap()
     }
 
-    //// Doesn't call notify or change value
+    // Doesn't call notify or change value
     fn set(&mut self, new_name: &str) {
         self.nvs
             .write()

@@ -1,11 +1,16 @@
 use std::sync::{Arc, RwLock};
 
-use esp32_nimble::{BLECharacteristic, BLEDevice, BLEService, NimbleProperties, OnWriteArgs};
+use esp32_nimble::{
+    utilities::BleUuid, uuid128, BLECharacteristic, BLEDevice, BLEService, NimbleProperties,
+    OnWriteArgs,
+};
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use futures::channel::mpsc::Sender;
 use log::warn;
 
-use crate::{NVS_TAG_PASSKEY, PASSKEY_UUID};
+use crate::NVS_TAG_PASSKEY;
+
+const PASSKEY_UUID: BleUuid = uuid128!("f0650e70-58ff-4b69-ab99-5d61c6db7e75");
 
 #[derive(Clone)]
 pub struct PasskeyCharacteristic {

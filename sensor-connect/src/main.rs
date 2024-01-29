@@ -1,4 +1,5 @@
 use crate::{
+    ble_on_characteristic::BleOnCharacteristic,
     const_characteristics::create_const_characteristics, get_short_name::get_short_name,
     passkey_characteristic::PasskeyCharacteristic, process_stdin::process_stdin,
     short_name_characteristic::ShortNameCharacteristic,
@@ -9,8 +10,12 @@ use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use futures::channel::mpsc::channel;
 use log::info;
-use std::sync::{Arc, RwLock};
+use std::{
+    borrow::BorrowMut,
+    sync::{Arc, RwLock},
+};
 
+mod ble_on_characteristic;
 mod const_characteristics;
 mod get_short_name;
 mod info;
@@ -24,8 +29,6 @@ const INITIAL_PASSKEY: u32 = 123456;
 const NVS_NAMESPACE: &str = "sensor_connect";
 const NVS_TAG_PASSKEY: &str = "passkey";
 const SERVICE_UUID: BleUuid = uuid128!("c5f93147-b051-4201-bb59-ff8f18db9876");
-const SHORT_NAME_UUID: BleUuid = uuid128!("ec67e1ac-cdd0-44bd-9c03-aebc64968b68");
-const PASSKEY_UUID: BleUuid = uuid128!("f0650e70-58ff-4b69-ab99-5d61c6db7e75");
 
 fn main() {
     task::block_on(main_async());
@@ -49,6 +52,7 @@ async fn main_async() {
             }
         }
     };
+    info!("Initial name: {:#?}", initial_name);
     info!("Passkey is: {:0>6}", initial_passkey);
 
     let nvs = Arc::new(RwLock::new(nvs));
@@ -92,18 +96,29 @@ async fn main_async() {
     let mut passkey_characteristic =
         PasskeyCharacteristic::new(&service, initial_passkey, nvs.clone(), passkey_change_tx);
 
+    let initial_ble_on = BleOnCharacteristic::get_initial_value(nvs.write().unwrap().borrow_mut());
+    let (ble_on_change_tx, ble_on_change_rx) = channel::<()>(0);
+    let mut ble_on_characteristic =
+        BleOnCharacteristic::new(&service, &nvs.clone(), ble_on_change_tx, initial_ble_on);
+
     ::log::info!(
         "bonded_addresses: {:?}",
         BLEDevice::take().bonded_addresses().unwrap()
     );
 
-    ble_advertising.start().unwrap();
+    if initial_ble_on {
+        ble_advertising.start().unwrap();
+    } else {
+        BLEDevice::deinit();
+    }
 
     process_stdin(
         &mut short_name_characteristic,
         short_name_change_rx,
         &mut passkey_characteristic,
         passkey_change_rx,
+        &mut ble_on_characteristic,
+        ble_on_change_rx,
     )
     .await;
 }

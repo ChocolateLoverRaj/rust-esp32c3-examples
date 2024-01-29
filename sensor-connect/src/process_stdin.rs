@@ -5,7 +5,8 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    info::INFO, passkey_characteristic::PasskeyCharacteristic,
+    ble_on_characteristic::BleOnCharacteristic, info::INFO,
+    passkey_characteristic::PasskeyCharacteristic,
     short_name_characteristic::ShortNameCharacteristic, stdin::get_stdin_stream,
     validate_short_name::validate_short_name,
 };
@@ -15,6 +16,8 @@ pub async fn process_stdin(
     mut short_name_change_receiver: Receiver<()>,
     passkey_characteristic: &mut PasskeyCharacteristic,
     mut passkey_change_receiver: Receiver<()>,
+    ble_on_characteristic: &mut BleOnCharacteristic,
+    mut ble_on_change_receiver: Receiver<()>,
 ) {
     let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
@@ -33,12 +36,14 @@ pub async fn process_stdin(
         Info,
         ShortName(GetSet<String>),
         Passkey(GetSet<u32>),
+        BleOn(GetSet<bool>),
     }
 
     #[derive(Serialize, Deserialize)]
     enum Message {
         ShortNameChange,
         PasskeyChange,
+        BleOnChange,
     }
 
     join!(
@@ -58,6 +63,12 @@ pub async fn process_stdin(
                     "{}",
                     serde_json::to_string(&Message::PasskeyChange).unwrap()
                 );
+            }
+        },
+        async {
+            loop {
+                ble_on_change_receiver.next().await.unwrap();
+                println!("{}", serde_json::to_string(&Message::BleOnChange).unwrap());
             }
         },
         async {
@@ -93,6 +104,15 @@ pub async fn process_stdin(
                                 );
                             }
                             GetSet::Set(passkey) => passkey_characteristic.set_externally(passkey),
+                        },
+                        Command::BleOn(sub) => match sub {
+                            GetSet::Get => {
+                                println!(
+                                    "{}",
+                                    serde_json::to_string(&ble_on_characteristic.get()).unwrap()
+                                );
+                            }
+                            GetSet::Set(on) => ble_on_characteristic.set_external(on),
                         },
                     },
                     Err(e) => {
