@@ -49,7 +49,7 @@ impl PasskeyCharacteristic {
                 .lock()
                 .set_value(&initial_passkey.to_be_bytes())
                 .on_write(
-                    move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data) {
+                    move |args| match <&[u8] as TryInto<[u8; 4]>>::try_into(args.recv_data()) {
                         Ok(new_passkey) => {
                             let new_passkey = u32::from_be_bytes(new_passkey);
                             characteristic.set_from_on_write(new_passkey, args);

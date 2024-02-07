@@ -69,11 +69,13 @@ impl BleOnCharacteristic {
                 .lock()
                 .set_value(&Self::encode(initial_value))
                 .on_write(move |args| {
-                    // FIXME: Make sure same deinit or init is not called while it's already on / off
-                    let new_ble_on = Self::decode(args.recv_data);
-                    args.notify();
-                    ble_on_characteristic.on_change_tx.try_send(()).unwrap();
-                    ble_on_characteristic.save_and_start_or_stop(new_ble_on);
+                    let current_ble_on = Self::decode(args.current_data());
+                    let new_ble_on = Self::decode(args.recv_data());
+                    if new_ble_on != current_ble_on {
+                        args.notify();
+                        ble_on_characteristic.on_change_tx.try_send(()).unwrap();
+                        ble_on_characteristic.save_and_start_or_stop(new_ble_on);
+                    }
                 });
         }
 
@@ -94,6 +96,7 @@ impl BleOnCharacteristic {
             BLEDevice::init();
             BLEDevice::take()
                 .get_advertising()
+                .lock()
                 .name(&get_short_name(self.nvs.write().unwrap().borrow_mut()))
                 .start()
                 .unwrap();

@@ -1,28 +1,35 @@
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
-    const_characteristics::create_const_characteristics, get_short_name::get_short_name,
-    passkey_characteristic::PasskeyCharacteristic, process_stdin::process_stdin,
+    const_characteristics::create_const_characteristics,
+    get_short_name::get_short_name,
+    ir_characteristic::create_ir_characteristic,
+    ir_sensor::{configure_and_get_receiver_pin, ir_loop},
+    passkey_characteristic::PasskeyCharacteristic,
+    process_stdin::process_stdin,
     short_name_characteristic::ShortNameCharacteristic,
 };
 use esp32_nimble::{enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode};
-use esp_idf_hal::task;
+use esp_idf_hal::{peripherals::Peripherals, task};
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
-use futures::channel::mpsc::channel;
+use futures::{channel::mpsc::channel, join};
 use log::info;
 use std::{
     borrow::BorrowMut,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 mod ble_on_characteristic;
 mod const_characteristics;
 mod get_short_name;
 mod info;
+mod ir_characteristic;
+mod ir_sensor;
 mod passkey_characteristic;
 mod process_stdin;
 mod short_name_characteristic;
 mod stdin;
+mod subscribable2;
 mod validate_short_name;
 
 const INITIAL_PASSKEY: u32 = 123456;
@@ -71,7 +78,7 @@ async fn main_async() {
 
         if server.connected_count() < (esp_idf_sys::CONFIG_BT_NIMBLE_MAX_CONNECTIONS as _) {
             ::log::info!("Multi-connect support: start advertising");
-            BLEDevice::take().get_advertising().start().unwrap();
+            BLEDevice::take().get_advertising().lock().start().unwrap();
         }
     });
     server.on_disconnect(|_desc, reason| {
@@ -81,6 +88,7 @@ async fn main_async() {
     let ble_advertising = device.get_advertising();
 
     ble_advertising
+        .lock()
         .name(initial_name.as_str())
         .add_service_uuid(SERVICE_UUID);
 
@@ -101,24 +109,38 @@ async fn main_async() {
     let mut ble_on_characteristic =
         BleOnCharacteristic::new(&service, &nvs.clone(), ble_on_change_tx, initial_ble_on);
 
+    let peripherals = Peripherals::take().unwrap();
+    let receiver_pin = Arc::new(Mutex::new(configure_and_get_receiver_pin(
+        peripherals.pins.gpio5,
+    )));
+    let (ir_future, ir_subscribable) = ir_loop(receiver_pin.clone(), peripherals.pins.gpio8);
+
+    let ir_characteristic_loop =
+        create_ir_characteristic(&service, ir_subscribable.clone(), receiver_pin.clone());
+
     ::log::info!(
         "bonded_addresses: {:?}",
         BLEDevice::take().bonded_addresses().unwrap()
     );
 
     if initial_ble_on {
-        ble_advertising.start().unwrap();
+        ble_advertising.lock().start().unwrap();
     } else {
         BLEDevice::deinit();
     }
 
-    process_stdin(
-        &mut short_name_characteristic,
-        short_name_change_rx,
-        &mut passkey_characteristic,
-        passkey_change_rx,
-        &mut ble_on_characteristic,
-        ble_on_change_rx,
-    )
-    .await;
+    join!(
+        process_stdin(
+            &mut short_name_characteristic,
+            short_name_change_rx,
+            &mut passkey_characteristic,
+            passkey_change_rx,
+            &mut ble_on_characteristic,
+            ble_on_change_rx,
+            ir_subscribable.clone(),
+            receiver_pin.clone(),
+        ),
+        ir_future,
+        ir_characteristic_loop
+    );
 }

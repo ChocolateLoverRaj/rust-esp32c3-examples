@@ -49,7 +49,7 @@ impl ShortNameCharacteristic {
                 .lock()
                 .set_value(initial_short_name.as_bytes())
                 .on_write(
-                    move |args| match String::from_utf8(args.recv_data.to_vec()) {
+                    move |args| match String::from_utf8(args.recv_data().to_vec()) {
                         Ok(short_name) => match validate_short_name(&short_name) {
                             Ok(_) => {
                                 characteristic.set_in_on_write(&short_name, args);
@@ -78,7 +78,7 @@ impl ShortNameCharacteristic {
             .unwrap()
             .set_str(NVS_TAG_SHORT_NAME, new_name)
             .unwrap();
-        let ble_advertising = BLEDevice::take().get_advertising();
+        let mut ble_advertising = BLEDevice::take().get_advertising().lock();
         ble_advertising.reset().unwrap();
         ble_advertising
             .name(new_name)
