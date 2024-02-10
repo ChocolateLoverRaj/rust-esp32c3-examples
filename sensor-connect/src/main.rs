@@ -1,12 +1,14 @@
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
     const_characteristics::create_const_characteristics,
+    distance_characteristic::create_distance_characteristic,
     get_short_name::get_short_name,
     ir_characteristic::create_ir_characteristic,
     ir_sensor::{configure_and_get_receiver_pin, ir_loop},
     passkey_characteristic::PasskeyCharacteristic,
     process_stdin::process_stdin,
     short_name_characteristic::ShortNameCharacteristic,
+    vl53l0x_sensor::{distance_loop, get_vl53l0x},
 };
 use esp32_nimble::{enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode};
 use esp_idf_hal::{peripherals::Peripherals, task};
@@ -19,8 +21,10 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+mod async_vl53l0x;
 mod ble_on_characteristic;
 mod const_characteristics;
+mod distance_characteristic;
 mod get_short_name;
 mod info;
 mod ir_characteristic;
@@ -31,6 +35,7 @@ mod short_name_characteristic;
 mod stdin;
 mod subscribable2;
 mod validate_short_name;
+mod vl53l0x_sensor;
 
 const INITIAL_PASSKEY: u32 = 123456;
 const NVS_NAMESPACE: &str = "sensor_connect";
@@ -118,6 +123,42 @@ async fn main_async() {
     let ir_characteristic_loop =
         create_ir_characteristic(&service, ir_subscribable.clone(), receiver_pin.clone());
 
+    let distance_sensor = get_vl53l0x(
+        peripherals.pins.gpio2,
+        peripherals.pins.gpio3,
+        peripherals.i2c0,
+        peripherals.pins.gpio1,
+    )
+    .ok()
+    .map(|v| Arc::new(futures::lock::Mutex::new(v)));
+    let maybe_distance = distance_sensor.clone().map(|distance_sensor| {
+        let (distance_future, distance_subscribable) = distance_loop(distance_sensor.clone());
+        (
+            {
+                let distance_sensor = distance_sensor.clone();
+                let distance_subscribable = distance_subscribable.clone();
+                let distance_characteristic_future = create_distance_characteristic(
+                    &service,
+                    distance_subscribable,
+                    distance_sensor,
+                );
+                async move {
+                    join!(distance_future, distance_characteristic_future);
+                }
+            },
+            distance_subscribable.clone(),
+        )
+    });
+    if distance_sensor.is_some() {
+        info!("Distance sensor connected");
+    } else {
+        info!("Distance sensor not connected");
+    }
+    let (distance_future, distance_subscribable) = match maybe_distance {
+        None => (None, None),
+        Some((future, subscribable)) => (Some(future), Some(subscribable)),
+    };
+
     ::log::info!(
         "bonded_addresses: {:?}",
         BLEDevice::take().bonded_addresses().unwrap()
@@ -139,8 +180,14 @@ async fn main_async() {
             ble_on_change_rx,
             ir_subscribable.clone(),
             receiver_pin.clone(),
+            distance_subscribable,
         ),
         ir_future,
-        ir_characteristic_loop
+        ir_characteristic_loop,
+        async {
+            if let Some(future) = distance_future {
+                future.await;
+            }
+        }
     );
 }

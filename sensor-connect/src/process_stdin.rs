@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -18,6 +19,7 @@ use crate::{
     short_name_characteristic::ShortNameCharacteristic,
     stdin::get_stdin_stream,
     validate_short_name::validate_short_name,
+    vl53l0x_sensor::{DistanceData, DistanceSubscribable},
 };
 
 pub async fn process_stdin(
@@ -29,6 +31,7 @@ pub async fn process_stdin(
     mut ble_on_change_receiver: Receiver<()>,
     mut ir_subscribable: IrSubscribable,
     receiver_pin: Arc<Mutex<ReceiverPin>>,
+    mut distance_subscribable: Option<DistanceSubscribable>,
 ) {
     let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
     let mut usb_lines_stream = stdin_stream
@@ -43,13 +46,19 @@ pub async fn process_stdin(
     }
 
     #[derive(Serialize, Deserialize)]
+    enum Subscribe {
+        Ir,
+        Distance,
+    }
+
+    #[derive(Serialize, Deserialize)]
     enum Command {
         Info,
         ShortName(GetSet<String>),
         Passkey(GetSet<u32>),
         BleOn(GetSet<bool>),
-        Subscribe,
-        Unsubscribe,
+        Subscribe(Subscribe),
+        Unsubscribe(Subscribe),
         ReadIr,
     }
 
@@ -87,7 +96,10 @@ pub async fn process_stdin(
         },
         async {
             let mut ir_subscription_id = None::<usize>;
-            let (mut tx, mut rx) = channel::<UnboundedReceiver<IrData>>(0);
+            let (mut ir_tx, mut ir_rx) = channel::<UnboundedReceiver<IrData>>(0);
+
+            let mut distance_subscription_id = None::<usize>;
+            let (mut distance_tx, mut distance_rx) = channel::<UnboundedReceiver<DistanceData>>(0);
 
             join!(
                 async {
@@ -140,19 +152,52 @@ pub async fn process_stdin(
                                     }
                                     GetSet::Set(on) => ble_on_characteristic.set_external(on),
                                 },
-                                Command::Subscribe => {
-                                    let (rx, id) = ir_subscribable.subscribe();
-                                    ir_subscription_id = Some(id);
-                                    tx.try_send(rx).unwrap();
-                                }
-                                Command::Unsubscribe => {
-                                    match ir_subscription_id {
-                                        Some(id) => ir_subscribable.unsubscribe(id),
+                                Command::Subscribe(subscribe) => match subscribe {
+                                    Subscribe::Ir => {
+                                        let (rx, id) = ir_subscribable.subscribe();
+                                        ir_subscription_id = Some(id);
+                                        ir_tx.try_send(rx).unwrap();
+                                    }
+                                    Subscribe::Distance => match distance_subscribable.borrow_mut()
+                                    {
+                                        Some(distance_subscribable) => {
+                                            warn!("Subscribing to distance");
+                                            let (rx, id) = distance_subscribable.subscribe();
+                                            distance_subscription_id = Some(id);
+                                            distance_tx.try_send(rx).unwrap();
+                                        }
+                                        None => {
+                                            warn!("No distance sensor connected");
+                                        }
+                                    },
+                                },
+                                Command::Unsubscribe(subscribe) => match subscribe {
+                                    Subscribe::Ir => match ir_subscription_id {
+                                        Some(id) => {
+                                            ir_subscribable.unsubscribe(id);
+                                            ir_subscription_id = None;
+                                        }
                                         None => {
                                             warn!("Cannot unsubscribe because currently not subscribed");
                                         }
-                                    }
-                                }
+                                    },
+                                    Subscribe::Distance => match distance_subscription_id {
+                                        Some(id) => match distance_subscribable.borrow_mut() {
+                                            Some(distance_subscribable) => {
+                                                warn!("Unsubscribing from distance");
+
+                                                distance_subscribable.unsubscribe(id);
+                                                distance_subscription_id = None;
+                                            }
+                                            None => {
+                                                warn!("No distance sensor connected");
+                                            }
+                                        },
+                                        None => {
+                                            warn!("Cannot unsubscribe because currently not subscribed");
+                                        }
+                                    },
+                                },
                                 Command::ReadIr => {
                                     println!("Aquiring lock");
                                     // FIXME: While the ir loop is running, the pin is locked because it is waiting for an edge, which requires write access
@@ -170,7 +215,7 @@ pub async fn process_stdin(
                 },
                 async {
                     loop {
-                        let mut rx = rx.next().await.unwrap();
+                        let mut rx = ir_rx.next().await.unwrap();
                         loop {
                             match rx.next().await {
                                 Some(value) => {
@@ -179,6 +224,19 @@ pub async fn process_stdin(
                                 }
                                 None => break,
                             };
+                        }
+                    }
+                },
+                async {
+                    loop {
+                        let mut rx = distance_rx.next().await.unwrap();
+                        loop {
+                            match rx.next().await {
+                                Some(value) => {
+                                    println!("New distance value: {:#?}", value);
+                                }
+                                None => break,
+                            }
                         }
                     }
                 }
