@@ -14,13 +14,18 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
     info::INFO,
-    ir_sensor::{is_receiving_light, IrData, IrSubscribable, ReceiverPin},
+    ir_sensor::{IrData, IrSensor, IrSubscribable},
     passkey_characteristic::PasskeyCharacteristic,
     short_name_characteristic::ShortNameCharacteristic,
     stdin::get_stdin_stream,
     validate_short_name::validate_short_name,
     vl53l0x_sensor::{DistanceData, DistanceSubscribable},
 };
+
+pub struct IrInput {
+    pub subscribable: IrSubscribable,
+    pub ir_sensor: Arc<Mutex<IrSensor>>,
+}
 
 pub async fn process_stdin(
     short_name_characteristic: &mut ShortNameCharacteristic,
@@ -29,8 +34,7 @@ pub async fn process_stdin(
     mut passkey_change_receiver: Receiver<()>,
     ble_on_characteristic: &mut BleOnCharacteristic,
     mut ble_on_change_receiver: Receiver<()>,
-    mut ir_subscribable: IrSubscribable,
-    receiver_pin: Arc<Mutex<ReceiverPin>>,
+    mut ir: Option<IrInput>,
     mut distance_subscribable: Option<DistanceSubscribable>,
 ) {
     let (stdin_stream, _stop_stdin_stream) = get_stdin_stream(Duration::from_millis(10));
@@ -153,11 +157,16 @@ pub async fn process_stdin(
                                     GetSet::Set(on) => ble_on_characteristic.set_external(on),
                                 },
                                 Command::Subscribe(subscribe) => match subscribe {
-                                    Subscribe::Ir => {
-                                        let (rx, id) = ir_subscribable.subscribe();
-                                        ir_subscription_id = Some(id);
-                                        ir_tx.try_send(rx).unwrap();
-                                    }
+                                    Subscribe::Ir => match ir.borrow_mut() {
+                                        Some(ir) => {
+                                            let (rx, id) = ir.subscribable.subscribe();
+                                            ir_subscription_id = Some(id);
+                                            ir_tx.try_send(rx).unwrap();
+                                        }
+                                        None => {
+                                            warn!("No IR Sensor connected");
+                                        }
+                                    },
                                     Subscribe::Distance => match distance_subscribable.borrow_mut()
                                     {
                                         Some(distance_subscribable) => {
@@ -173,10 +182,15 @@ pub async fn process_stdin(
                                 },
                                 Command::Unsubscribe(subscribe) => match subscribe {
                                     Subscribe::Ir => match ir_subscription_id {
-                                        Some(id) => {
-                                            ir_subscribable.unsubscribe(id);
-                                            ir_subscription_id = None;
-                                        }
+                                        Some(id) => match ir.borrow_mut() {
+                                            Some(ir) => {
+                                                ir.subscribable.unsubscribe(id);
+                                                ir_subscription_id = None;
+                                            }
+                                            None => {
+                                                warn!("No IR sensor connected");
+                                            }
+                                        },
                                         None => {
                                             warn!("Cannot unsubscribe because currently not subscribed");
                                         }
@@ -199,12 +213,22 @@ pub async fn process_stdin(
                                     },
                                 },
                                 Command::ReadIr => {
-                                    println!("Aquiring lock");
-                                    // FIXME: While the ir loop is running, the pin is locked because it is waiting for an edge, which requires write access
-                                    println!(
-                                        "{}",
-                                        is_receiving_light(&mut receiver_pin.try_lock().unwrap())
-                                    );
+                                    match ir.borrow_mut() {
+                                        Some(ir) => {
+                                            println!("Aquiring lock");
+                                            // FIXME: While the ir loop is running, the pin is locked because it is waiting for an edge, which requires write access
+                                            println!(
+                                                "{}",
+                                                ir.ir_sensor
+                                                    .try_lock()
+                                                    .unwrap()
+                                                    .turn_on_and_check_is_receiving_light()
+                                            );
+                                        }
+                                        None => {
+                                            warn!("IR not connected");
+                                        }
+                                    }
                                 }
                             },
                             Err(e) => {

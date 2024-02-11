@@ -4,9 +4,9 @@ use crate::{
     distance_characteristic::create_distance_characteristic,
     get_short_name::get_short_name,
     ir_characteristic::create_ir_characteristic,
-    ir_sensor::{configure_and_get_receiver_pin, ir_loop},
+    ir_sensor::{configure_and_get_ir_sensor, ir_loop},
     passkey_characteristic::PasskeyCharacteristic,
-    process_stdin::process_stdin,
+    process_stdin::{process_stdin, IrInput},
     short_name_characteristic::ShortNameCharacteristic,
     vl53l0x_sensor::{distance_loop, get_vl53l0x},
 };
@@ -115,13 +115,32 @@ async fn main_async() {
         BleOnCharacteristic::new(&service, &nvs.clone(), ble_on_change_tx, initial_ble_on);
 
     let peripherals = Peripherals::take().unwrap();
-    let receiver_pin = Arc::new(Mutex::new(configure_and_get_receiver_pin(
-        peripherals.pins.gpio5,
-    )));
-    let (ir_future, ir_subscribable) = ir_loop(receiver_pin.clone(), peripherals.pins.gpio8);
 
-    let ir_characteristic_loop =
-        create_ir_characteristic(&service, ir_subscribable.clone(), receiver_pin.clone());
+    let (ir_future, ir_subscribable) = {
+        let ir_sensor =
+            configure_and_get_ir_sensor(peripherals.pins.gpio21, peripherals.pins.gpio5)
+                .map(|ir_sensor| Arc::new(Mutex::new(ir_sensor)));
+        let ir = ir_sensor.map(|ir_sensor| {
+            let (ir_future, ir_subscribable) = ir_loop(ir_sensor.clone(), peripherals.pins.gpio8);
+            let ir_characteristic_loop =
+                create_ir_characteristic(&service, ir_subscribable.clone(), ir_sensor.clone());
+            (
+                async {
+                    join!(ir_future, ir_characteristic_loop);
+                },
+                (ir_subscribable.clone(), ir_sensor.clone()),
+            )
+        });
+        if ir.is_some() {
+            info!("IR sensor connected");
+        } else {
+            info!("IR sensor not connected");
+        }
+        match ir {
+            Some((ir_future, stuff)) => (Some(ir_future), Some(stuff)),
+            None => (None, None),
+        }
+    };
 
     let distance_sensor = get_vl53l0x(
         peripherals.pins.gpio2,
@@ -178,12 +197,17 @@ async fn main_async() {
             passkey_change_rx,
             &mut ble_on_characteristic,
             ble_on_change_rx,
-            ir_subscribable.clone(),
-            receiver_pin.clone(),
+            ir_subscribable.map(|(ir_subscribable, ir_sensor)| IrInput {
+                ir_sensor: ir_sensor.clone(),
+                subscribable: ir_subscribable,
+            }),
             distance_subscribable,
         ),
-        ir_future,
-        ir_characteristic_loop,
+        async {
+            if let Some(future) = ir_future {
+                future.await;
+            }
+        },
         async {
             if let Some(future) = distance_future {
                 future.await;

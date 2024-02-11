@@ -8,14 +8,14 @@ use futures::{
 };
 use log::info;
 
-use crate::ir_sensor::{is_receiving_light, IrData, IrSubscribable};
+use crate::ir_sensor::{IrData, IrSensor, IrSubscribable};
 
 const BLE_IR: BleUuid = uuid128!("51b80f42-a10e-4912-852b-b155a5610557");
 
 pub fn create_ir_characteristic(
     service: &Arc<esp32_nimble::utilities::mutex::Mutex<BLEService>>,
     mut ir_subscribable: IrSubscribable,
-    receiver_pin: Arc<Mutex<PinDriver<'static, AnyIOPin, Input>>>,
+    ir_sensor: Arc<Mutex<IrSensor>>,
 ) -> impl Future<Output = ()> {
     let characteristic = service
         .lock()
@@ -27,7 +27,11 @@ pub fn create_ir_characteristic(
     characteristic
         .lock()
         .on_read(move |att_value, _| {
-            att_value.set_value(&[is_receiving_light(&mut receiver_pin.lock().unwrap()).into()])
+            att_value.set_value(&[ir_sensor
+                .lock()
+                .unwrap()
+                .turn_on_and_check_is_receiving_light()
+                .into()])
         })
         .on_subscribe({
             move |characteristic, _, sub| {
