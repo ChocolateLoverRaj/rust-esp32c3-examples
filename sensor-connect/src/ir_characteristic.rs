@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use esp32_nimble::{utilities::BleUuid, uuid128, BLEService, NimbleProperties, NimbleSub};
-use esp_idf_hal::gpio::{AnyIOPin, Input, PinDriver};
 use futures::{
     channel::mpsc::{channel, UnboundedReceiver},
     Future, StreamExt,

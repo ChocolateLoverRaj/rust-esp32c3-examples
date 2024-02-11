@@ -64,6 +64,7 @@ pub async fn process_stdin(
         Subscribe(Subscribe),
         Unsubscribe(Subscribe),
         ReadIr,
+        GetCapabilities,
     }
 
     #[derive(Serialize, Deserialize)]
@@ -71,6 +72,12 @@ pub async fn process_stdin(
         ShortNameChange,
         PasskeyChange,
         BleOnChange,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Capabilities {
+        ir: bool,
+        distance: bool,
     }
 
     join!(
@@ -229,6 +236,16 @@ pub async fn process_stdin(
                                             warn!("IR not connected");
                                         }
                                     }
+                                }
+                                Command::GetCapabilities => {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string(&Capabilities {
+                                            distance: distance_subscribable.is_some(),
+                                            ir: ir.is_some()
+                                        })
+                                        .unwrap()
+                                    );
                                 }
                             },
                             Err(e) => {

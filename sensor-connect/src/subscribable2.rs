@@ -5,11 +5,6 @@ use futures::channel::mpsc::{
 };
 use slab::Slab;
 
-pub trait InternalSubscribable<T> {
-    fn on_subscribe(&mut self, update: Sender<T>);
-    fn on_unsubscribe(&mut self);
-}
-
 #[derive(Clone)]
 pub struct Subscribable2<T: Copy + Send> {
     tx: Arc<Mutex<Sender<()>>>,

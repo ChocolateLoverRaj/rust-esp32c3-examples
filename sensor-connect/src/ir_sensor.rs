@@ -1,5 +1,4 @@
 use std::{
-    borrow::BorrowMut,
     ops::Add,
     sync::{Arc, Mutex},
     thread,
@@ -13,7 +12,6 @@ use futures::{
     future::{select, Either},
     Future, StreamExt,
 };
-use log::warn;
 
 use crate::subscribable2::Subscribable2;
 
