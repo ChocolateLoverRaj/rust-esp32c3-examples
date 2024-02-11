@@ -165,11 +165,16 @@ pub async fn process_stdin(
                                 },
                                 Command::Subscribe(subscribe) => match subscribe {
                                     Subscribe::Ir => match ir.borrow_mut() {
-                                        Some(ir) => {
-                                            let (rx, id) = ir.subscribable.subscribe();
-                                            ir_subscription_id = Some(id);
-                                            ir_tx.try_send(rx).unwrap();
-                                        }
+                                        Some(ir) => match ir_subscription_id {
+                                            None => {
+                                                let (rx, id) = ir.subscribable.subscribe();
+                                                ir_subscription_id = Some(id);
+                                                ir_tx.try_send(rx).unwrap();
+                                            }
+                                            Some(_) => {
+                                                warn!("Already subscribed to ir");
+                                            }
+                                        },
                                         None => {
                                             warn!("No IR Sensor connected");
                                         }
@@ -177,10 +182,17 @@ pub async fn process_stdin(
                                     Subscribe::Distance => match distance_subscribable.borrow_mut()
                                     {
                                         Some(distance_subscribable) => {
-                                            warn!("Subscribing to distance");
-                                            let (rx, id) = distance_subscribable.subscribe();
-                                            distance_subscription_id = Some(id);
-                                            distance_tx.try_send(rx).unwrap();
+                                            match distance_subscription_id {
+                                                None => {
+                                                    let (rx, id) =
+                                                        distance_subscribable.subscribe();
+                                                    distance_subscription_id = Some(id);
+                                                    distance_tx.try_send(rx).unwrap();
+                                                }
+                                                Some(_) => {
+                                                    warn!("Already subscribed to distance");
+                                                }
+                                            }
                                         }
                                         None => {
                                             warn!("No distance sensor connected");
