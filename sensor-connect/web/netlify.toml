@@ -1,6 +1,3 @@
 [build]
-command = "curl https://sh.rustup.rs -sSf | sh -s -- -y && npm i && npm run build"
+command = "curl https://sh.rustup.rs -sSf | sh -s -- -y && NODE_ENV=production npm run build"
 publish = "dist"
-
-[build.environment]
-NODE_ENV = "production"
