@@ -1,3 +1,5 @@
+Set the env var `RUSTFLAGS=--cfg=web_sys_unstable_apis` when running / building.
+
 ## How to install
 
 ```sh

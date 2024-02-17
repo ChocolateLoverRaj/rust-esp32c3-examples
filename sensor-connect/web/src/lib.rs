@@ -1,22 +1,12 @@
-use counter::Counter;
-use wasm_bindgen::JsValue;
-use wasm_react::{export_components, Component, VNode};
-mod counter;
+use app::App;
+use wasm_react::export_components;
 
-pub struct App;
-
-impl Component for App {
-    fn render(&self) -> VNode {
-        Counter { initial_counter: 0 }.build()
-    }
-}
-
-impl TryFrom<JsValue> for App {
-    type Error = JsValue;
-
-    fn try_from(_: JsValue) -> Result<Self, Self::Error> {
-        Ok(App)
-    }
-}
+mod app;
+mod ble_connection;
+mod connect_button;
+mod connection;
+mod connection_enum;
+mod connection_options;
+mod usb_connection;
 
 export_components! { App }
