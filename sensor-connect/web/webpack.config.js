@@ -1,5 +1,4 @@
 const path = require("path");
-const CopyPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const WorkboxPlugin = require('workbox-webpack-plugin');
@@ -12,7 +11,12 @@ module.exports = (env) => ({
     asyncWebAssembly: true,
   },
   entry: {
-    index: "./js/index",
+    index: [
+      "./pkg/index.js",
+      ...env.WEBPACK_BUILD
+        ? ["./js/register-sw.js"]
+        : []
+    ],
   },
   output: {
     path: dist,
@@ -32,29 +36,15 @@ module.exports = (env) => ({
       }
     }),
     ...env.WEBPACK_BUILD
-      ? [new WorkboxPlugin.GenerateSW({
-        // these options encourage the ServiceWorkers to get in there fast
-        // and not allow any straggling "old" SWs to hang around
-        clientsClaim: true,
-        skipWaiting: true,
-      })]
+      ? [
+        new WorkboxPlugin.GenerateSW({
+          // these options encourage the ServiceWorkers to get in there fast
+          // and not allow any straggling "old" SWs to hang around
+          clientsClaim: true,
+          skipWaiting: true,
+          swDest: 'service-worker.js'
+        })
+      ]
       : [],
-  ],
-  resolve: {
-    extensions: ['.js', '.jsx']
-  },
-  module: {
-    rules: [
-      {
-        test: /\.?jsx?$/,
-        exclude: /node_modules/,
-        use: {
-          loader: "babel-loader",
-          options: {
-            presets: ['@babel/preset-react']
-          }
-        }
-      },
-    ]
-  },
+  ]
 });
