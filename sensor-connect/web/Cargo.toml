@@ -28,25 +28,30 @@ common = { path = "../common" }
 wasm-bindgen-futures = "0.4.41"
 wasm-bindgen-test = "0.3.34"
 leptos = { version = "0.6.5", features = ["csr", "nightly"] }
+futures-core = "0.3.30"
+futures = "0.3.30"
+serde_json = "1.0.113"
 
 # The `web-sys` crate allows you to interact with the various browser APIs,
 # like the DOM.
 [dependencies.web-sys]
 version = "0.3.22"
 features = [
-  "console",
-  "Navigator",
-  "Window",
   "Bluetooth",
   "RequestDeviceOptions",
   "BluetoothDevice",
   "BluetoothRemoteGattServer",
+  "BluetoothRemoteGattService",
   "BluetoothRemoteGattCharacteristic",
+  "console",
+  "Navigator",
   "ReadableStream",
   "ReadableStreamDefaultReader",
   "Serial",
   "SerialPort",
   "SerialOptions",
+  "TextDecoder",
+  "Window",
   "WritableStream",
   "WritableStreamDefaultWriter",
 ]

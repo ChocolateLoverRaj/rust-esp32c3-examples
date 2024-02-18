@@ -46,5 +46,8 @@ module.exports = (env) => ({
         })
       ]
       : [],
-  ]
+  ],
+  devServer: {
+    http2: true,
+  },
 });

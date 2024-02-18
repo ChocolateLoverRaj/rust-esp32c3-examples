@@ -1,7 +1,12 @@
-use leptos::{component, view, IntoView};
+use leptos::{component, view, Callback, IntoView};
+
+use crate::{
+    ble_connection::BleConnectionBuilder, connection::ConnectionBuilder,
+    connection_type::ConnectionType, usb_connection::UsbConnectionBuilder,
+};
 
 #[component]
-pub fn ConnectionOptions() -> impl IntoView {
+pub fn ConnectionOptions(on_click_connect: Callback<ConnectionType>) -> impl IntoView {
     view! {
         <h1>SensorConnect</h1>
         <p>Connect to an ESP32-C3 Super-Mini to read and graph sensor data</p>
@@ -61,16 +66,27 @@ pub fn ConnectionOptions() -> impl IntoView {
                 <tr>
                     <th></th>
                     <td>
-                        <button>Connect</button>
+                        <button
+                            disabled=!UsbConnectionBuilder::is_available()
+                            on:click=move |_| on_click_connect(ConnectionType::Usb)
+                        >
+                            Connect
+                        </button>
                     </td>
                     <td>
-                        <button>Connect</button>
+                        <button
+                            disabled=!BleConnectionBuilder::is_available()
+                            on:click=move |_| on_click_connect(ConnectionType::Ble)
+                        >
+                            Connect
+                        </button>
                     </td>
                 </tr>
             </tbody>
         </table>
         <h1>About</h1>
-        <a href=env!("CARGO_PKG_REPOSITORY")>GitHub Repository</a><br />
+        <a href=env!("CARGO_PKG_REPOSITORY")>GitHub Repository</a>
+        <br/>
         <a href=env!("CARGO_PKG_HOMEPAGE")>Source Code</a>
     }
 }
