@@ -1,3 +1,4 @@
+#![feature(const_trait_impl, effects)]
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
     const_characteristics::create_const_characteristics,

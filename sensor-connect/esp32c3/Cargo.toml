@@ -47,6 +47,7 @@ serde_json = "1.0.111"
 slab = "0.4.9"
 vl53l0x = "0.3.1"
 nb = "1.1.0"
+common = { version = "0.1.0", path = "../common" }
 
 [dependencies.hal]
 version = "0.2"

@@ -3,7 +3,7 @@ use esp32_nimble::{
     uuid128, BLEService, NimbleProperties,
 };
 
-use crate::info::INFO;
+use crate::info::get_info;
 
 const PACKAGE_NAME_UUID: BleUuid = uuid128!("72e4028a-f727-4867-9ec4-25637a6eb834");
 const VERSION_UUID: BleUuid = uuid128!("504fc887-3a39-4cd2-89f1-0fa6c9c55f22");
@@ -14,28 +14,29 @@ const AUTHORS_UUID: BleUuid = uuid128!("7ef914f3-9c94-45f9-ab77-26429fae3bc4");
 pub fn create_const_characteristics(service: &Mutex<BLEService>) {
     struct ConstCharacteristic {
         uuid: BleUuid,
-        value: &'static str,
+        value: String,
     }
+    let info = get_info();
     let const_characteristics = vec![
         ConstCharacteristic {
             uuid: PACKAGE_NAME_UUID,
-            value: INFO.name,
+            value: info.name,
         },
         ConstCharacteristic {
             uuid: VERSION_UUID,
-            value: INFO.version,
+            value: info.version,
         },
         ConstCharacteristic {
             uuid: HOMEPAGE_UUID,
-            value: INFO.homepage,
+            value: info.homepage,
         },
         ConstCharacteristic {
             uuid: REPOSITORY_UUID,
-            value: INFO.repository,
+            value: info.repository,
         },
         ConstCharacteristic {
             uuid: AUTHORS_UUID,
-            value: INFO.authors,
+            value: info.authors,
         },
     ];
     for const_characteristic in const_characteristics {

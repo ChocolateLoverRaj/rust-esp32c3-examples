@@ -1,3 +1,4 @@
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 pub const SERVICE_UUID: &str = "c5f93147-b051-4201-bb59-ff8f18db9876";
@@ -16,7 +17,7 @@ pub enum Subscribe {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum Command {
+pub enum CommandData {
     Info,
     ShortName(GetSet<String>),
     Passkey(GetSet<u32>),
@@ -28,6 +29,20 @@ pub enum Command {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct MessageToEsp {
+    pub id: u32,
+    pub command: CommandData,
+}
+impl MessageToEsp {
+    pub fn new(command: CommandData) -> Self {
+        Self {
+            id: rand::thread_rng().next_u32(),
+            command,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Message {
     ShortNameChange,
     PasskeyChange,
@@ -36,6 +51,44 @@ pub enum Message {
 
 #[derive(Serialize, Deserialize)]
 pub struct Capabilities {
-    ir: bool,
-    distance: bool,
+    pub ir: bool,
+    pub distance: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum ResponseData {
+    GetInfo(Info),
+    GetShortName(String),
+    Complete,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+
+pub struct Response {
+    pub id: u32,
+    pub data: ResponseData,
+}
+// impl Response {
+//     pub fn new(data: ResponseData) -> Self {
+//         Self {
+//             id: rand::thread_rng().next_u32(),
+//             data,
+//         }
+//     }
+// }
+
+#[derive(Serialize, Deserialize, Clone)]
+
+pub enum MessageFromEsp {
+    Response(Response),
+    Event(Message),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Info {
+    pub name: String,
+    pub version: String,
+    pub homepage: String,
+    pub repository: String,
+    pub authors: String,
 }

@@ -4,16 +4,20 @@ use std::{
     time::Duration,
 };
 
+use common::{
+    Capabilities, CommandData, GetSet, Message, MessageFromEsp, MessageToEsp, Response,
+    ResponseData, Subscribe,
+};
 use futures::{
     channel::mpsc::{channel, Receiver, UnboundedReceiver},
     join, AsyncBufReadExt, StreamExt, TryStreamExt,
 };
 use log::warn;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
-    info::INFO,
+    info::get_info,
     ir_sensor::{IrData, IrSensor, IrSubscribable},
     passkey_characteristic::PasskeyCharacteristic,
     short_name_characteristic::ShortNameCharacteristic,
@@ -43,50 +47,14 @@ pub async fn process_stdin(
         .into_async_read()
         .lines();
 
-    #[derive(Serialize, Deserialize)]
-    enum GetSet<T> {
-        Get,
-        Set(T),
-    }
-
-    #[derive(Serialize, Deserialize)]
-    enum Subscribe {
-        Ir,
-        Distance,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    enum Command {
-        Info,
-        ShortName(GetSet<String>),
-        Passkey(GetSet<u32>),
-        BleOn(GetSet<bool>),
-        Subscribe(Subscribe),
-        Unsubscribe(Subscribe),
-        ReadIr,
-        GetCapabilities,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    enum Message {
-        ShortNameChange,
-        PasskeyChange,
-        BleOnChange,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    struct Capabilities {
-        ir: bool,
-        distance: bool,
-    }
-
     join!(
         async {
             loop {
                 short_name_change_receiver.next().await.unwrap();
                 println!(
                     "{}",
-                    serde_json::to_string(&Message::ShortNameChange).unwrap()
+                    serde_json::to_string(&MessageFromEsp::Event(Message::ShortNameChange))
+                        .unwrap()
                 );
             }
         },
@@ -117,23 +85,51 @@ pub async fn process_stdin(
                     loop {
                         let line = usb_lines_stream.next().await.unwrap().unwrap();
 
-                        let command: serde_json::Result<Command> = serde_json::from_str(&line);
+                        let command: serde_json::Result<MessageToEsp> = serde_json::from_str(&line);
                         match command {
-                            Ok(command) => match command {
-                                Command::Info => {
-                                    let info_str = serde_json::to_string(&INFO).unwrap();
-                                    println!("{}", info_str);
+                            Ok(command) => match command.command {
+                                CommandData::Info => {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string(&MessageFromEsp::Response(
+                                            Response {
+                                                id: command.id,
+                                                data: ResponseData::GetInfo(get_info())
+                                            }
+                                        ))
+                                        .unwrap()
+                                    );
                                 }
-                                Command::ShortName(sub) => match sub {
+                                CommandData::ShortName(sub) => match sub {
                                     GetSet::Get => {
-                                        println!("{:?}", short_name_characteristic.get());
+                                        println!(
+                                            "{}",
+                                            serde_json::to_string(&MessageFromEsp::Response(
+                                                Response {
+                                                    id: command.id,
+                                                    data: ResponseData::GetShortName(
+                                                        short_name_characteristic.get()
+                                                    )
+                                                }
+                                            ))
+                                            .unwrap()
+                                        );
                                     }
                                     GetSet::Set(short_name) => {
                                         match validate_short_name(&short_name) {
                                             Ok(_) => {
                                                 short_name_characteristic
                                                     .set_externally(&short_name);
-                                                println!();
+                                                println!(
+                                                    "{}",
+                                                    serde_json::to_string(
+                                                        &MessageFromEsp::Response(Response {
+                                                            id: command.id,
+                                                            data: ResponseData::Complete
+                                                        })
+                                                    )
+                                                    .unwrap()
+                                                );
                                             }
                                             Err(e) => {
                                                 warn!("{}", e);
@@ -141,7 +137,7 @@ pub async fn process_stdin(
                                         }
                                     }
                                 },
-                                Command::Passkey(sub) => match sub {
+                                CommandData::Passkey(sub) => match sub {
                                     GetSet::Get => {
                                         println!(
                                             "{}",
@@ -153,7 +149,7 @@ pub async fn process_stdin(
                                         passkey_characteristic.set_externally(passkey)
                                     }
                                 },
-                                Command::BleOn(sub) => match sub {
+                                CommandData::BleOn(sub) => match sub {
                                     GetSet::Get => {
                                         println!(
                                             "{}",
@@ -163,7 +159,7 @@ pub async fn process_stdin(
                                     }
                                     GetSet::Set(on) => ble_on_characteristic.set_external(on),
                                 },
-                                Command::Subscribe(subscribe) => match subscribe {
+                                CommandData::Subscribe(subscribe) => match subscribe {
                                     Subscribe::Ir => match ir.borrow_mut() {
                                         Some(ir) => match ir_subscription_id {
                                             None => {
@@ -199,7 +195,7 @@ pub async fn process_stdin(
                                         }
                                     },
                                 },
-                                Command::Unsubscribe(subscribe) => match subscribe {
+                                CommandData::Unsubscribe(subscribe) => match subscribe {
                                     Subscribe::Ir => match ir_subscription_id {
                                         Some(id) => match ir.borrow_mut() {
                                             Some(ir) => {
@@ -231,7 +227,7 @@ pub async fn process_stdin(
                                         }
                                     },
                                 },
-                                Command::ReadIr => {
+                                CommandData::ReadIr => {
                                     match ir.borrow_mut() {
                                         Some(ir) => {
                                             println!("Aquiring lock");
@@ -249,7 +245,7 @@ pub async fn process_stdin(
                                         }
                                     }
                                 }
-                                Command::GetCapabilities => {
+                                CommandData::GetCapabilities => {
                                     println!(
                                         "{}",
                                         serde_json::to_string(&Capabilities {
