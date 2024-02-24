@@ -1,9 +1,8 @@
 use std::time::SystemTime;
 
+use common::validate_short_name::SHORT_NAME_MAX_LENGTH;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use random::Source;
-
-use crate::validate_short_name::SHORT_NAME_MAX_LENGTH;
 
 pub const NVS_TAG_SHORT_NAME: &str = "short_name";
 const NAME_RANDOM_BYTES: usize = 1;

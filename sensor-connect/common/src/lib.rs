@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub const SERVICE_UUID: &str = "c5f93147-b051-4201-bb59-ff8f18db9876";
 pub const SHORT_NAME_UUID: &str = "ec67e1ac-cdd0-44bd-9c03-aebc64968b68";
 
+pub mod validate_short_name;
+
 #[derive(Serialize, Deserialize)]
 pub enum GetSet<T> {
     Get,

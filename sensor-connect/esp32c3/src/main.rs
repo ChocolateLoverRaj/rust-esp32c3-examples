@@ -35,7 +35,6 @@ mod process_stdin;
 mod short_name_characteristic;
 mod stdin;
 mod subscribable2;
-mod validate_short_name;
 mod vl53l0x_sensor;
 
 const INITIAL_PASSKEY: u32 = 123456;

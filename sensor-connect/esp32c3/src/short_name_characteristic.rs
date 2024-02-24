@@ -1,5 +1,6 @@
 use std::sync::{Arc, RwLock};
 
+use common::validate_short_name::validate_short_name;
 use esp32_nimble::{
     utilities::{mutex::Mutex, BleUuid},
     uuid128, BLECharacteristic, BLEDevice, BLEService, NimbleProperties, OnWriteArgs,
@@ -8,9 +9,7 @@ use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use futures::channel::mpsc::Sender;
 use log::warn;
 
-use crate::{
-    get_short_name::NVS_TAG_SHORT_NAME, validate_short_name::validate_short_name, SERVICE_UUID,
-};
+use crate::{get_short_name::NVS_TAG_SHORT_NAME, SERVICE_UUID};
 
 const SHORT_NAME_UUID: BleUuid = uuid128!("ec67e1ac-cdd0-44bd-9c03-aebc64968b68");
 

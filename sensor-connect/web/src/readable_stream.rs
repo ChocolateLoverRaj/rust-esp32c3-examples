@@ -1,5 +1,5 @@
 use futures::stream::unfold;
-use futures_core::{FusedStream, Stream};
+use futures_core::FusedStream;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{
     js_sys::{IteratorNext, Uint8Array},

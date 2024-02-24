@@ -5,8 +5,8 @@ use std::{
 };
 
 use common::{
-    Capabilities, CommandData, GetSet, Message, MessageFromEsp, MessageToEsp, Response,
-    ResponseData, Subscribe,
+    validate_short_name::validate_short_name, Capabilities, CommandData, GetSet, Message,
+    MessageFromEsp, MessageToEsp, Response, ResponseData, Subscribe,
 };
 use futures::{
     channel::mpsc::{channel, Receiver, UnboundedReceiver},
@@ -22,7 +22,6 @@ use crate::{
     passkey_characteristic::PasskeyCharacteristic,
     short_name_characteristic::ShortNameCharacteristic,
     stdin::get_stdin_stream,
-    validate_short_name::validate_short_name,
     vl53l0x_sensor::{DistanceData, DistanceSubscribable},
 };
 
