@@ -6,19 +6,19 @@ pub const SHORT_NAME_UUID: &str = "ec67e1ac-cdd0-44bd-9c03-aebc64968b68";
 
 pub mod validate_short_name;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum GetSet<T> {
     Get,
     Set(T),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Subscribe {
     Ir,
     Distance,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum CommandData {
     Info,
     ShortName(GetSet<String>),
@@ -30,11 +30,12 @@ pub enum CommandData {
     GetCapabilities,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MessageToEsp {
     pub id: u32,
     pub command: CommandData,
 }
+
 impl MessageToEsp {
     pub fn new(command: CommandData) -> Self {
         Self {
@@ -44,28 +45,27 @@ impl MessageToEsp {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Message {
     ShortNameChange,
     PasskeyChange,
     BleOnChange,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Capabilities {
     pub ir: bool,
     pub distance: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ResponseData {
     GetInfo(Info),
     GetShortName(String),
     Complete,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Response {
     pub id: u32,
     pub data: ResponseData,
@@ -79,14 +79,13 @@ pub struct Response {
 //     }
 // }
 
-#[derive(Serialize, Deserialize, Clone)]
-
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MessageFromEsp {
     Response(Response),
     Event(Message),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Info {
     pub name: String,
     pub version: String,

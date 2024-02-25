@@ -1,147 +1,52 @@
 use std::fmt::Debug;
 
-use ansitok::{parse_ansi, ElementKind};
-use common::{CommandData, Message, MessageFromEsp, MessageToEsp};
-use futures::{stream::unfold, AsyncBufReadExt, StreamExt, TryStreamExt};
+use ansitok::{ElementKind, parse_ansi};
+use futures::{AsyncBufReadExt, StreamExt, TryStreamExt};
 use futures_core::FusedStream;
-use leptos::{create_signal_from_stream, ReadSignal};
-use stream_broadcast::{StreamBroadcastExt, StreamBroadcastUnlimited};
+use stream_broadcast::StreamBroadcastExt;
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{js_sys::Uint8Array, JsFuture};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    window, ReadableStreamDefaultReader, SerialOptions, SerialPort, WritableStreamDefaultWriter,
+    ReadableStreamDefaultReader, SerialOptions, SerialPort, window, WritableStreamDefaultWriter,
 };
+
+use common::MessageFromEsp;
 
 use crate::{
     connection::{Connection, ConnectionBuilder},
     readable_stream::get_readable_stream,
 };
+use crate::connection::Characteristic;
+use crate::usb_connection::message_writer::MessageWriter;
+use crate::usb_connection::name_messenger::NameMessenger;
+use crate::usb_connection::usb_characteristic::UsbCharacteristic;
 
-pub struct UsbConnection<T: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static> {
-    message_stream: StreamBroadcastUnlimited<T>,
-    write_stream: WritableStreamDefaultWriter,
+mod usb_characteristic;
+mod usb_characteristic_messenger;
+mod name_messenger;
+mod message_writer;
+
+pub struct UsbConnection<T: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> {
+    name_characteristic: UsbCharacteristic<String, NameMessenger, T>,
 }
-impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
-    Connection for UsbConnection<T>
+
+impl<T: FusedStream<Item=MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
+Connection for UsbConnection<T>
 {
     fn get_connection_type(&self) -> String {
         "USB".into()
     }
 
-    fn get_name(&self) -> Box<dyn std::future::Future<Output = String> + Unpin> {
-        Self::get_name(self.write_stream.clone(), self.message_stream.clone())
-    }
-
-    fn watch_name(&self) -> ReadSignal<Option<String>> {
-        let write_stream = self.write_stream.clone();
-        let message_stream = self.message_stream.clone();
-
-        let stream_broadcast_unlimited: StreamBroadcastUnlimited<T> = self.message_stream.clone();
-
-        let a: ReadSignal<Option<String>> = create_signal_from_stream(Box::pin(
-            unfold(Some((write_stream, message_stream)), |first| async move {
-                match first {
-                    Some((write_stream, message_stream)) => {
-                        Some((Self::get_name(write_stream, message_stream).await, None))
-                    }
-                    None => None,
-                }
-            })
-            .chain({
-                let write_stream = self.write_stream.clone();
-                let message_stream = self.message_stream.clone();
-
-                stream_broadcast_unlimited.filter_map(move |(_id, message)| {
-                    let write_stream = write_stream.clone();
-                    let message_stream = message_stream.clone();
-
-                    async move {
-                        match message {
-                            MessageFromEsp::Event(event) => match event {
-                                Message::ShortNameChange => {
-                                    Some(Self::get_name(write_stream, message_stream).await)
-                                }
-                                _ => None,
-                            },
-                            MessageFromEsp::Response(_) => None,
-                        }
-                    }
-                })
-            }),
-        ));
-        a
-    }
-
-    fn set_name(&self, new_name: &str) -> Box<dyn futures::prelude::Future<Output = ()> + Unpin> {
-        let write_stream = self.write_stream.clone();
-        let new_name = new_name.to_owned();
-        let message_stream = self.message_stream.clone();
-        let message_to_esp =
-            MessageToEsp::new(CommandData::ShortName(common::GetSet::Set(new_name)));
-        Box::new(Box::pin(async move {
-            JsFuture::from(write_stream.write_with_chunk(&Uint8Array::from(
-                format!("{}\n", serde_json::to_string(&message_to_esp).unwrap()).as_bytes(),
-            )))
-            .await
-            .unwrap();
-            Box::pin(message_stream.filter_map(|(_index, message)| async {
-                match message {
-                    MessageFromEsp::Response(response) => {
-                        if response.id == message_to_esp.id {
-                            match response.data {
-                                common::ResponseData::Complete => Some(()),
-                                _ => panic!(),
-                            }
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                }
-            }))
-            .next()
-            .await
-            .unwrap();
-        }))
+    fn name(&self) -> Box<dyn Characteristic<String>> {
+        Box::new(self.name_characteristic.clone())
     }
 }
-impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static> Debug
-    for UsbConnection<T>
+
+impl<T: FusedStream<Item=MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static> Debug
+for UsbConnection<T>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "USB Connection")
-    }
-}
-
-impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
-    UsbConnection<T>
-{
-    fn get_name(
-        write_stream: WritableStreamDefaultWriter,
-        mut message_stream: StreamBroadcastUnlimited<T>,
-    ) -> Box<dyn std::future::Future<Output = String> + Unpin> {
-        Box::new(Box::pin(async move {
-            let message_to_esp = MessageToEsp::new(CommandData::ShortName(common::GetSet::Get));
-            JsFuture::from(write_stream.write_with_chunk(&Uint8Array::from(
-                format!("{}\n", serde_json::to_string(&message_to_esp).unwrap()).as_bytes(),
-            )))
-            .await
-            .unwrap();
-            loop {
-                let (_id, message) = message_stream.next().await.unwrap();
-                match message {
-                    MessageFromEsp::Response(response) => {
-                        if response.id == message_to_esp.id {
-                            match response.data {
-                                common::ResponseData::GetShortName(name) => return name,
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }))
     }
 }
 
@@ -192,12 +97,11 @@ impl ConnectionBuilder for UsbConnectionBuilder {
                     message_from_esp
                 }),
         )
-        .fuse()
-        .broadcast_unlimited();
+            .fuse()
+            .broadcast_unlimited();
 
         Ok(Box::new(UsbConnection {
-            message_stream,
-            write_stream,
+            name_characteristic: UsbCharacteristic::new(message_stream.clone(), MessageWriter::new(write_stream.clone())),
         }))
     }
 }

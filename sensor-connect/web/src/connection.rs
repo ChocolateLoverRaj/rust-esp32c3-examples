@@ -3,12 +3,14 @@ use std::{fmt::Debug, future::Future};
 use leptos::ReadSignal;
 use wasm_bindgen::JsValue;
 
+pub trait Characteristic<T> {
+    fn watch(&self) -> ReadSignal<Option<T>>;
+    fn set(&self, new_value: T) -> Box<dyn Future<Output=()> + Unpin>;
+}
+
 pub trait Connection: Debug {
     fn get_connection_type(&self) -> String;
-    fn get_name(&self) -> Box<dyn Future<Output = String> + Unpin>;
-    fn watch_name(&self) -> ReadSignal<Option<String>>;
-    // TODO: Return result and handle error
-    fn set_name(&self, new_name: &str) -> Box<dyn Future<Output = ()> + Unpin>;
+    fn name(&self) -> Box<dyn Characteristic<String>>;
 }
 
 impl PartialEq<Box<dyn Connection>> for Box<dyn Connection> {

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/esp32c3/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/web/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/common/target" />
+      <excludeFolder url="file://$MODULE_DIR$/esp32c3/target" />
+      <excludeFolder url="file://$MODULE_DIR$/web/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
