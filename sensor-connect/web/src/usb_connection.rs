@@ -101,7 +101,7 @@ impl ConnectionBuilder for UsbConnectionBuilder {
             .broadcast_unlimited();
 
         Ok(Box::new(UsbConnection {
-            name_characteristic: UsbCharacteristic::new(message_stream.clone(), MessageWriter::new(write_stream.clone())),
+            name_characteristic: UsbCharacteristic::new(message_stream, MessageWriter::new(write_stream)),
         }))
     }
 }
