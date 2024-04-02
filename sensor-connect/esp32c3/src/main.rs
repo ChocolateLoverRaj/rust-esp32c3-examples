@@ -1,4 +1,22 @@
 #![feature(const_trait_impl, effects)]
+
+use std::{
+    borrow::BorrowMut,
+    sync::{Arc, Mutex, RwLock},
+};
+use std::convert::Into;
+
+use esp32_nimble::{
+    BLEAdvertisementData, BLEDevice, BLEReturnCode, enums::*, utilities::BleUuid, uuid128,
+};
+use esp_idf_hal::{peripherals::Peripherals, task};
+use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
+use esp_idf_sys as _;
+use futures::{channel::mpsc::channel, join};
+use log::info;
+
+use common::SERVICE_UUID;
+
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
     const_characteristics::create_const_characteristics,
@@ -7,19 +25,9 @@ use crate::{
     ir_characteristic::create_ir_characteristic,
     ir_sensor::{configure_and_get_ir_sensor, ir_loop},
     passkey_characteristic::PasskeyCharacteristic,
-    process_stdin::{process_stdin, IrInput},
+    process_stdin::{IrInput, process_stdin},
     short_name_characteristic::ShortNameCharacteristic,
     vl53l0x_sensor::{distance_loop, get_vl53l0x},
-};
-use esp32_nimble::{enums::*, utilities::BleUuid, uuid128, BLEDevice, BLEReturnCode};
-use esp_idf_hal::{peripherals::Peripherals, task};
-use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
-use esp_idf_sys as _;
-use futures::{channel::mpsc::channel, join};
-use log::info;
-use std::{
-    borrow::BorrowMut,
-    sync::{Arc, Mutex, RwLock},
 };
 
 mod async_vl53l0x;
@@ -40,7 +48,6 @@ mod vl53l0x_sensor;
 const INITIAL_PASSKEY: u32 = 123456;
 const NVS_NAMESPACE: &str = "sensor_connect";
 const NVS_TAG_PASSKEY: &str = "passkey";
-const SERVICE_UUID: BleUuid = uuid128!("c5f93147-b051-4201-bb59-ff8f18db9876");
 
 fn main() {
     task::block_on(main_async());
@@ -94,10 +101,14 @@ async fn main_async() {
 
     ble_advertising
         .lock()
-        .name(initial_name.as_str())
-        .add_service_uuid(SERVICE_UUID);
+        .set_data(
+            &mut BLEAdvertisementData::new()
+                .name(initial_name.as_str())
+                .add_service_uuid(BleUuid::from_uuid128_string(SERVICE_UUID).unwrap()),
+        )
+        .unwrap();
 
-    let service = server.create_service(SERVICE_UUID);
+    let service = server.create_service(BleUuid::from_uuid128_string(SERVICE_UUID).unwrap());
 
     create_const_characteristics(&service);
 
@@ -148,8 +159,8 @@ async fn main_async() {
         peripherals.i2c0,
         peripherals.pins.gpio1,
     )
-    .ok()
-    .map(|v| Arc::new(futures::lock::Mutex::new(v)));
+        .ok()
+        .map(|v| Arc::new(futures::lock::Mutex::new(v)));
     let maybe_distance = distance_sensor.clone().map(|distance_sensor| {
         let (distance_future, distance_subscribable) = distance_loop(distance_sensor.clone());
         (
@@ -186,7 +197,7 @@ async fn main_async() {
     if initial_ble_on {
         ble_advertising.lock().start().unwrap();
     } else {
-        BLEDevice::deinit();
+        BLEDevice::deinit().unwrap();
     }
 
     join!(

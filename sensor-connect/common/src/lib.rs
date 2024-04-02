@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 pub const SERVICE_UUID: &str = "c5f93147-b051-4201-bb59-ff8f18db9876";
 pub const SHORT_NAME_UUID: &str = "ec67e1ac-cdd0-44bd-9c03-aebc64968b68";
+pub const PASSKEY_UUID: &str = "f0650e70-58ff-4b69-ab99-5d61c6db7e75";
+pub const BLE_ON_UUID: &str = "3c534064-8559-45e8-84d1-761d1c5ef438";
 
 pub mod validate_short_name;
 
@@ -62,6 +64,8 @@ pub struct Capabilities {
 pub enum ResponseData {
     GetInfo(Info),
     GetShortName(String),
+    GetPasskey(u32),
+    GetBleOn(bool),
     Complete,
 }
 

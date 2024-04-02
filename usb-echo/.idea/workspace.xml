@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e34d6374-de23-4926-af53-9f593f0cced8" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../VL53L0X/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../VL53L0X/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../VL53L0X/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../VL53L0X/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../sensor-connect/web/src/ble_connection/ble_u32_serializer.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../sensor-connect/web/src/ble_connection/get_characteristic.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../sensor-connect/web/src/usb_connection/passkey_messenger.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../VL53L0X/.cargo/config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/../VL53L0X/.cargo/config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../VL53L0X/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/../VL53L0X/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../VL53L0X/src/async_vl53l0x.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../VL53L0X/src/async_vl53l0x.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../VL53L0X/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../VL53L0X/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/common/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/common/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/ble_on_characteristic.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/ble_on_characteristic.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/passkey_characteristic.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/passkey_characteristic.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/process_stdin.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/process_stdin.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/short_name_characteristic.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/esp32c3/src/short_name_characteristic.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/web/src/ble_connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/web/src/ble_connection.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/web/src/connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/web/src/connection.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sensor-connect/web/src/usb_connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../sensor-connect/web/src/usb_connection.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.cargo/config.toml" beforeDir="false" afterPath="$PROJECT_DIR$/.cargo/config.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sdkconfig.defaults" beforeDir="false" afterPath="$PROJECT_DIR$/sdkconfig.defaults" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="wofcxrv7" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="2cslLmRjs5ijkkCWHZw9N3aATd5" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Cargo.Run echo.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;sensor-connect-web&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/var/home/rajas/Documents/esp32c3/usb-echo/Cargo.toml&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RunManager">
+    <configuration name="Run echo" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="run --package echo --bin echo" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Cargo.Run echo" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="e34d6374-de23-4926-af53-9f593f0cced8" name="Changes" comment="" />
+      <created>1708908113858</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1708908113858</updated>
+      <workItem from="1708908114964" duration="2473000" />
+      <workItem from="1708914828801" duration="416000" />
+      <workItem from="1708919098785" duration="3944000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

@@ -6,10 +6,12 @@ use web_sys::{
     js_sys::{Array, JsString, Object}, RequestDeviceOptions, window,
 };
 
-use common::SERVICE_UUID;
+use common::{SERVICE_UUID, SHORT_NAME_UUID};
 
 use crate::ble_connection::ble_string_serializer::BleStringSerializer;
-use crate::connection::{Connection, ConnectionBuilder};
+use crate::ble_connection::ble_u32_serializer::BleU32Serializer;
+use crate::ble_connection::get_characteristic::get_characteristic;
+use crate::connection::{Characteristic, Connection, ConnectionBuilder};
 
 use self::{
     ble_characteristic::BleCharacteristic, get_service::get_service,
@@ -21,10 +23,13 @@ mod ble_serializer;
 mod get_service;
 mod get_short_name_characteristic;
 mod ble_string_serializer;
+mod ble_u32_serializer;
+mod get_characteristic;
 
 #[derive(Debug)]
 pub struct BleConnection {
     name_characteristic: BleCharacteristic<String, BleStringSerializer>,
+    passkey_characteristic: BleCharacteristic<u32, BleU32Serializer>,
 }
 
 impl Connection for BleConnection {
@@ -34,6 +39,10 @@ impl Connection for BleConnection {
 
     fn name(&self) -> Box<dyn crate::connection::Characteristic<String>> {
         Box::new(self.name_characteristic.clone())
+    }
+
+    fn passkey(&self) -> Box<dyn Characteristic<u32>> {
+        Box::new(self.passkey_characteristic.clone())
     }
 }
 
@@ -46,7 +55,6 @@ impl ConnectionBuilder for BleConnectionBuilder {
     }
 
     async fn connect() -> Result<Box<dyn Connection>, JsValue> {
-        // FIXME: Error handling
         let device: BluetoothDevice = JsFuture::from(
             window()
                 .unwrap()
@@ -70,6 +78,7 @@ impl ConnectionBuilder for BleConnectionBuilder {
         let characteristic = get_short_name_characteristic(&service).await;
         Ok(Box::new(BleConnection {
             name_characteristic: BleCharacteristic::new(characteristic),
+            passkey_characteristic: BleCharacteristic::new(get_characteristic(&service, SHORT_NAME_UUID).await),
         }))
     }
 }

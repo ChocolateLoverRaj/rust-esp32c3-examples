@@ -3,18 +3,17 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use esp32_nimble::{
-    utilities::{mutex::Mutex, BleUuid},
-    uuid128, BLECharacteristic, BLEDevice, BLEService, NimbleProperties,
-};
+use esp32_nimble::{BLEAdvertisementData, BLECharacteristic, BLEDevice, BLEService, NimbleProperties, utilities::mutex::Mutex};
+use esp32_nimble::utilities::BleUuid;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use futures::channel::mpsc::Sender;
+
+use common::BLE_ON_UUID;
 
 use crate::get_short_name::get_short_name;
 
 const NVS_TAG_BLE_ON: &str = "ble_on";
 const DEFAULT_BLE_ON: bool = true;
-const BLE_UUID_ON: BleUuid = uuid128!("3c534064-8559-45e8-84d1-761d1c5ef438");
 
 #[derive(Clone)]
 pub struct BleOnCharacteristic {
@@ -49,7 +48,7 @@ impl BleOnCharacteristic {
         initial_value: bool,
     ) -> Self {
         let characteristic = service.lock().create_characteristic(
-            BLE_UUID_ON,
+            BleUuid::from_uuid128_string(BLE_ON_UUID).unwrap(),
             NimbleProperties::READ
                 | NimbleProperties::WRITE
                 | NimbleProperties::WRITE_ENC
@@ -94,14 +93,16 @@ impl BleOnCharacteristic {
             .unwrap();
         if on {
             BLEDevice::init();
-            BLEDevice::take()
+            let mut ble_advertising = BLEDevice::take()
                 .get_advertising()
-                .lock()
-                .name(&get_short_name(self.nvs.write().unwrap().borrow_mut()))
+                .lock();
+            ble_advertising.set_data(&mut BLEAdvertisementData::new()
+                .name(&get_short_name(self.nvs.write().unwrap().borrow_mut()))).unwrap();
+            ble_advertising
                 .start()
                 .unwrap();
         } else {
-            BLEDevice::deinit();
+            BLEDevice::deinit().unwrap();
         }
     }
 

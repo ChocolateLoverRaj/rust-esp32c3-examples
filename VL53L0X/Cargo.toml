@@ -1,5 +1,5 @@
 [package]
-name = "esp32c3"
+name = "esp32c3-vl53l0x"
 version = "0.1.0"
 authors = [
   "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
@@ -31,15 +31,15 @@ embassy = [
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.47.3", default-features = false }
-esp-idf-sys = { version = "0.33.7", features = ["binstart"] }
-esp-idf-hal = "0.42.5"
-esp-println = { version = "0.3.1", features = ["esp32c3"] }
+esp-idf-svc = { version = "0.48.1", default-features = false }
+esp-idf-sys = { version = "0.34.1", features = ["binstart"] }
+esp-idf-hal = "0.43.1"
+esp-println = { version = "0.9.0", features = ["esp32c3"] }
 vl53l0x = "0.3.1"
 nb = "1.1.0"
 
 [dependencies.hal]
-version = "0.2"
+version = "1.0.0"
 package = "embedded-hal"
 
 [build-dependencies]

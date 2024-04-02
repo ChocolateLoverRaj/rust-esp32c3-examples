@@ -4,16 +4,17 @@ use std::{
     time::Duration,
 };
 
-use common::{
-    validate_short_name::validate_short_name, Capabilities, CommandData, GetSet, Message,
-    MessageFromEsp, MessageToEsp, Response, ResponseData, Subscribe,
-};
 use futures::{
-    channel::mpsc::{channel, Receiver, UnboundedReceiver},
-    join, AsyncBufReadExt, StreamExt, TryStreamExt,
+    AsyncBufReadExt,
+    channel::mpsc::{channel, Receiver, UnboundedReceiver}, join, StreamExt, TryStreamExt,
 };
 use log::warn;
 use serde::Serialize;
+
+use common::{
+    Capabilities, CommandData, GetSet, Message, MessageFromEsp,
+    MessageToEsp, Response, ResponseData, Subscribe, validate_short_name::validate_short_name,
+};
 
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
@@ -140,7 +141,10 @@ pub async fn process_stdin(
                                     GetSet::Get => {
                                         println!(
                                             "{}",
-                                            serde_json::to_string(&passkey_characteristic.get())
+                                            serde_json::to_string(&MessageFromEsp::Response(Response {
+                                                id: command.id,
+                                                data: ResponseData::GetPasskey(passkey_characteristic.get())
+                                            }))
                                                 .unwrap()
                                         );
                                     }
@@ -152,7 +156,10 @@ pub async fn process_stdin(
                                     GetSet::Get => {
                                         println!(
                                             "{}",
-                                            serde_json::to_string(&ble_on_characteristic.get())
+                                            serde_json::to_string(&MessageFromEsp::Response(Response {
+                                                id: command.id,
+                                                data: ResponseData::GetBleOn(ble_on_characteristic.get())
+                                            }))
                                                 .unwrap()
                                         );
                                     }

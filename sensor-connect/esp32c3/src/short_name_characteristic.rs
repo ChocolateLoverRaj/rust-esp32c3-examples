@@ -1,17 +1,18 @@
 use std::sync::{Arc, RwLock};
 
-use common::validate_short_name::validate_short_name;
 use esp32_nimble::{
-    utilities::{mutex::Mutex, BleUuid},
-    uuid128, BLECharacteristic, BLEDevice, BLEService, NimbleProperties, OnWriteArgs,
+    BLEAdvertisementData,
+    BLECharacteristic, BLEDevice, BLEService, NimbleProperties, OnWriteArgs, utilities::{BleUuid, mutex::Mutex},
+    uuid128,
 };
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use futures::channel::mpsc::Sender;
 use log::warn;
 
-use crate::{get_short_name::NVS_TAG_SHORT_NAME, SERVICE_UUID};
+use common::SHORT_NAME_UUID;
+use common::validate_short_name::validate_short_name;
 
-const SHORT_NAME_UUID: BleUuid = uuid128!("ec67e1ac-cdd0-44bd-9c03-aebc64968b68");
+use crate::{get_short_name::NVS_TAG_SHORT_NAME, SERVICE_UUID};
 
 #[derive(Clone)]
 pub struct ShortNameCharacteristic {
@@ -28,7 +29,7 @@ impl ShortNameCharacteristic {
         on_change_sender: Sender<()>,
     ) -> ShortNameCharacteristic {
         let short_name_characteristic = service.lock().create_characteristic(
-            SHORT_NAME_UUID,
+            BleUuid::from_uuid128_string(SHORT_NAME_UUID).unwrap(),
             NimbleProperties::READ
                 | NimbleProperties::WRITE
                 | NimbleProperties::WRITE_ENC
@@ -80,10 +81,13 @@ impl ShortNameCharacteristic {
         let mut ble_advertising = BLEDevice::take().get_advertising().lock();
         ble_advertising.reset().unwrap();
         ble_advertising
-            .name(new_name)
-            .add_service_uuid(SERVICE_UUID)
-            .start()
+            .set_data(
+                &mut BLEAdvertisementData::new()
+                    .name(new_name)
+                    .add_service_uuid(BleUuid::from_uuid128_string(SERVICE_UUID).unwrap()),
+            )
             .unwrap();
+        ble_advertising.start().unwrap()
     }
 
     fn set_in_on_write(&mut self, new_name: &str, on_write_args: &mut OnWriteArgs) {

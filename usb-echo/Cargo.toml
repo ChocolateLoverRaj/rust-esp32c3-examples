@@ -31,11 +31,11 @@ embassy = [
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.47.3", default-features = false }
-esp-idf-sys = { version = "0.33.7", features = ["binstart"] }
-esp-idf-hal = "0.42.5"
-esp-println = { version = "0.3.1", features = ["esp32c3"] }
+esp-idf-svc = { version = "0.48.1", default-features = false }
+esp-idf-sys = { version = "0.34.1", features = ["binstart"] }
+esp-idf-hal = "0.43.1"
 libc = "0.2.152"
+async-std = { version = "1.12.0", default-features = false }
 
 [build-dependencies]
 embuild = "0.31.3"

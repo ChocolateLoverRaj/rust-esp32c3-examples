@@ -1,17 +1,17 @@
 use std::fmt::Debug;
 
 use esp_idf_hal::gpio::{Input, InputPin, InterruptType, OutputPin, PinDriver, Pull};
+use esp_idf_hal::i2c::{I2cDriver, I2cError};
 use esp_idf_sys::EspError;
-use hal::blocking::i2c::{Write, WriteRead};
 use vl53l0x::VL53L0x;
 
-pub struct AsyncVL53L0x<'d, I2c: hal::blocking::i2c::WriteRead, Gpio1: InputPin> {
-    pub vl53l0x: VL53L0x<I2c>,
+pub struct AsyncVL53L0x<'d, Gpio1: InputPin> {
+    pub vl53l0x: VL53L0x<I2cDriver<'d>>,
     gpio1: PinDriver<'d, Gpio1, Input>,
 }
 
 #[derive(Debug)]
-pub enum NewWithGpio1Error<I2cError> {
+pub enum NewWithGpio1Error {
     NewVL53L0xError(vl53l0x::Error<I2cError>),
     PinDriverError(EspError),
     SetPullError(EspError),
@@ -26,13 +26,11 @@ pub enum ReadRangeMmAsyncError<I2cError> {
 }
 
 impl<
-        'd,
-        I2c: WriteRead<Error = I2cError> + Write<Error = I2cError>,
-        I2cError,
-        Gpio1: InputPin + OutputPin,
-    > AsyncVL53L0x<'d, I2c, Gpio1>
+    'd,
+    Gpio1: InputPin + OutputPin,
+> AsyncVL53L0x<'d, Gpio1>
 {
-    pub fn new_with_gpio1(i2c: I2c, gpio1: Gpio1) -> Result<Self, NewWithGpio1Error<I2cError>> {
+    pub fn new_with_gpio1(i2c: I2cDriver<'d>, gpio1: Gpio1) -> Result<Self, NewWithGpio1Error> {
         let vl53l0x = VL53L0x::new(i2c).map_err(|e| NewWithGpio1Error::NewVL53L0xError(e))?;
         let mut gpio1 =
             PinDriver::input(gpio1).map_err(|e| NewWithGpio1Error::PinDriverError(e))?;

@@ -1,17 +1,50 @@
-use esp_idf_sys as _;
+use std::io::{BufRead, Read};
+use std::thread;
+use std::time::Duration;
+use esp_idf_svc::log::EspLogger;
+use log::info;
+use {
+    esp_idf_sys::{esp, esp_vfs_dev_uart_use_driver, uart_driver_install, vTaskDelay},
+    std::{
+        io::{stdin, stdout, Write},
+        ptr::null_mut,
+        thread::spawn,
+    },
+};
 
-fn main() {
-    // It is necessary to call this function once,
-    // or else some patches to the runtime implemented by esp-idf-sys might not link properly.
-    esp_idf_sys::link_patches();
-
-    let mut buf = [0u8; 1024];
-    let buf_ptr = buf.as_mut_ptr() as *mut libc::c_void;
+fn echo() {
+    let mut buffer = [0u8; 8];
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock();
+    let stdout = stdout();
+    let mut stdout_handle = stdout.lock();
 
     loop {
-        let len = unsafe { libc::read(libc::STDIN_FILENO, buf_ptr, buf.len()) };
-        if len > 0 {
-            unsafe { libc::write(libc::STDOUT_FILENO, buf_ptr, len as usize) };
+        match handle.read(&mut buffer) {
+            Ok(length) => {
+                stdout_handle.write_all(&mut buffer.split_at_mut(length).0).unwrap();
+                // print!("{:#?}", buffer);
+                // buffer.clear();
+            }
+            Err(e) => {
+                match e.kind() {
+                    std::io::ErrorKind::WouldBlock
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::Interrupted => {
+                        // info!("Error: {e}\r\n");
+                        unsafe { vTaskDelay(20) };
+                    }
+                    _ => {
+                        // info!("Error: {e}\r\n");
+                    }
+                }
+            }
         }
     }
+}
+
+fn main() {
+    EspLogger::initialize_default();
+
+    echo();
 }

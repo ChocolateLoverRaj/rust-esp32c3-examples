@@ -2,7 +2,7 @@
 name = "sensor-connect"
 version = "0.1.0"
 authors = [
-  "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
+    "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
 ]
 homepage = "https://github.com/ChocolateLoverRaj/rust-esp32c3-examples/tree/main/sensor-connect"
 repository = "https://github.com/ChocolateLoverRaj/rust-esp32c3-examples"
@@ -26,9 +26,9 @@ alloc = ["esp-idf-svc/alloc"]
 nightly = ["esp-idf-svc/nightly"]
 experimental = ["esp-idf-svc/experimental"]
 embassy = [
-  "esp-idf-svc/embassy-sync",
-  "esp-idf-svc/critical-section",
-  "esp-idf-svc/embassy-time-driver",
+    "esp-idf-svc/embassy-sync",
+    "esp-idf-svc/critical-section",
+    "esp-idf-svc/embassy-time-driver",
 ]
 
 [dependencies]
@@ -36,9 +36,9 @@ log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.48", default-features = false }
 esp-idf-sys = { version = "0.34", features = ["binstart"] }
 esp-idf-hal = "0.43"
-esp-println = { version = "0.3.1", features = ["esp32c3"] }
+esp-println = { version = "0.9.0", features = ["esp32c3"] }
 libc = "0.2.152"
-esp32-nimble = { git = "https://github.com/taks/esp32-nimble", rev = "8f55ab516bc2854ac7304ff7875e8aa0066546f0" }
+esp32-nimble = { git = "https://github.com/taks/esp32-nimble", rev = "3d0beafc1bcd9dc51962762050edc4eb682ea94f" }
 random = "0.14.0"
 hex = "0.4.3"
 futures = "0.3.30"

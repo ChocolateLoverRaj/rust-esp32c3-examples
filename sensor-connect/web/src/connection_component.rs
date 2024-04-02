@@ -5,11 +5,13 @@ use leptos::{
     SignalSet, SignalWith, view,
 };
 
+use name_component::{NameComponent, NameComponentProps};
 use set_name::{SetName, SetNameProps};
 
 use crate::connection::Connection;
 
 mod set_name;
+mod name_component;
 
 #[component]
 pub fn ConnectionComponent(connection: MaybeSignal<Rc<Box<dyn Connection>>>) -> impl IntoView {
@@ -27,43 +29,12 @@ pub fn ConnectionComponent(connection: MaybeSignal<Rc<Box<dyn Connection>>>) -> 
                 <tr>
                     <th>Connection Type</th>
 
-                    <td>{move || connection().get_connection_type()}</td>
+                    <td>{{
+            let connection = connection.clone(); move
+                     || connection().get_connection_type()
+        }}</td>
                 </tr>
-                <tr>
-                    <th>Device Name</th>
-                    {move || match is_changing_name() {
-                        true => {
-                            SetName(SetNameProps {
-                                    initial_name: name.get().unwrap_or_default(),
-                                    set_name,
-                                    close: move || changing_name.set(false),
-                                })
-                                .into_view()
-                        }
-                        false => {
-                            view! {
-                                <td>
-                                    {move || {
-                                        name.with(|name| match name {
-                                                None => "Loading".into(),
-                                                Some(name) => name.to_owned(),
-                                            })
-                                            .into_view()
-                                    }}
-
-                                </td>
-                                <td>
-                                    <button on:click=move |_ev| {
-                                        changing_name.set(true)
-                                    }>Edit</button>
-
-                                </td>
-                            }
-                                .into_view()
-                        }
-                    }}
-
-                </tr>
+            {NameComponent(NameComponentProps { name_characteristic: Rc::new(connection.get().name())})}
             </tbody>
         </table>
     }

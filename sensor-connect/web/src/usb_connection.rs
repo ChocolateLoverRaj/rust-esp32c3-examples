@@ -19,15 +19,18 @@ use crate::{
 use crate::connection::Characteristic;
 use crate::usb_connection::message_writer::MessageWriter;
 use crate::usb_connection::name_messenger::NameMessenger;
+use crate::usb_connection::passkey_messenger::PasskeyMessenger;
 use crate::usb_connection::usb_characteristic::UsbCharacteristic;
 
 mod usb_characteristic;
 mod usb_characteristic_messenger;
 mod name_messenger;
 mod message_writer;
+mod passkey_messenger;
 
 pub struct UsbConnection<T: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> {
     name_characteristic: UsbCharacteristic<String, NameMessenger, T>,
+    passkey_characteristic: UsbCharacteristic<u32, PasskeyMessenger, T>,
 }
 
 impl<T: FusedStream<Item=MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
@@ -39,6 +42,10 @@ Connection for UsbConnection<T>
 
     fn name(&self) -> Box<dyn Characteristic<String>> {
         Box::new(self.name_characteristic.clone())
+    }
+
+    fn passkey(&self) -> Box<dyn Characteristic<u32>> {
+        Box::new(self.passkey_characteristic.clone())
     }
 }
 
@@ -100,8 +107,10 @@ impl ConnectionBuilder for UsbConnectionBuilder {
             .fuse()
             .broadcast_unlimited();
 
+        let message_writer = MessageWriter::new(write_stream.clone());
         Ok(Box::new(UsbConnection {
-            name_characteristic: UsbCharacteristic::new(message_stream, MessageWriter::new(write_stream)),
+            name_characteristic: UsbCharacteristic::new(message_stream.clone(), message_writer.clone()),
+            passkey_characteristic: UsbCharacteristic::new(message_stream.clone(), message_writer.clone()),
         }))
     }
 }

@@ -2,10 +2,10 @@ use async_vl53l0x::AsyncVL53L0x;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::{
     i2c::{I2cConfig, I2cDriver},
-    peripherals::Peripherals,
     task,
 };
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_sys as _;
+// If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_println::println;
 
 mod async_vl53l0x;
