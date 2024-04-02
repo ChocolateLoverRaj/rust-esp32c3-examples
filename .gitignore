@@ -1,5 +1,5 @@
 .embuild
 target
-Cargo.lock
 node_modules
 build
+.direnv

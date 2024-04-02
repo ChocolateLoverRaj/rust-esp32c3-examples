@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/web/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/esp32c3/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/common/Cargo.toml" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="813e413d-e6de-4b34-940f-ac1b7744091a" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/sensor-connect.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/web/src/ble_connection/ble_string_serializer.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/web/src/usb_connection/message_writer.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/web/src/usb_connection/name_messenger.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/web/src/usb_connection/usb_characteristic.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/web/src/usb_connection/usb_characteristic_messenger.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/ble_connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/ble_connection.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/ble_connection/get_service.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/ble_connection/get_service.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/ble_connection/get_short_name_characteristic.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/ble_connection/get_short_name_characteristic.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/connection.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/connection_component.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/connection_component.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/usb_connection.rs" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/usb_connection.rs" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Rust File" />
+      </list>
+    </option>
+  </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="gyuqplkj" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="OptimizeOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="2cpkbm7q7TvtKTAcnJxzZKM3aoX" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;Cargo.Build sensor-connect-web [sensor-connect-web].executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;sensor-connect-web&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/var/home/rajas/Documents/stream-broadcast-rs&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;npm.start.executor&quot;: &quot;Run&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RunManager" selected="npm.start">
+    <configuration name="Build sensor-connect-web [sensor-connect-web]" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+      <option name="command" value="build --package sensor-connect-web --lib" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$/web" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="start" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/web/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="start" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="npm.start" />
+        <item itemvalue="Cargo.Build sensor-connect-web [sensor-connect-web]" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="RustfmtProjectSettings">
+    <option name="useRustfmt" value="true" />
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="813e413d-e6de-4b34-940f-ac1b7744091a" name="Changes" comment="" />
+      <created>1708815981363</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1708815981363</updated>
+      <workItem from="1708815982300" duration="1270000" />
+      <workItem from="1708817439805" duration="107000" />
+      <workItem from="1708817559592" duration="34000" />
+      <workItem from="1708817599958" duration="6486000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="dependencySupport" implementationName="javascript:npm:react" />
+    <option featureType="dependencySupport" implementationName="javascript:npm:stylus-loader" />
+    <option featureType="dependencySupport" implementationName="javascript:npm:stylus" />
+    <option featureType="dependencySupport" implementationName="javascript:npm:webpack" />
+    <option featureType="dependencySupport" implementationName="executable:podman" />
+    <option featureType="dependencySupport" implementationName="javascript:npm:vue" />
+  </component>
+</project>
