@@ -22,9 +22,6 @@ module.exports = (env) => ({
     path: dist,
     filename: "[name].js",
   },
-  devServer: {
-    static: dist,
-  },
   plugins: [
     new HtmlWebpackPlugin({
       template: "index.html"
@@ -48,6 +45,6 @@ module.exports = (env) => ({
       : [],
   ],
   devServer: {
-    http2: true,
+    http2: true
   },
 });

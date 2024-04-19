@@ -13,7 +13,7 @@ impl UsbCharacteristicMessenger<u32> for PasskeyMessenger {
     fn find_get_response(response_data: ResponseData) -> Option<u32> {
         match response_data {
             common::ResponseData::GetPasskey(passkey) => Some(passkey),
-            _ => None
+            _ => None,
         }
     }
 

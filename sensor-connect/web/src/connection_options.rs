@@ -51,7 +51,7 @@ pub fn ConnectionOptions(on_click_connect: Callback<ConnectionType>) -> impl Int
                 <tr>
                     <th>Linux Desktop</th>
                     <td>Yes (Chromium)</td>
-                    <td>Yes (Chromium)</td>
+                    <td>Partial (Chromium) (Cannot enter passkey)</td>
                 </tr>
                 <tr>
                     <th>Maximum Computers</th>

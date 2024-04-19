@@ -47,6 +47,16 @@ pub async fn process_stdin(
         .into_async_read()
         .lines();
 
+    let passkey_change_fut = async {
+        loop {
+            passkey_change_receiver.next().await.unwrap();
+            println!(
+                "{}",
+                serde_json::to_string(&MessageFromEsp::Event(Message::PasskeyChange)).unwrap()
+            );
+        }
+    };
+
     join!(
         async {
             loop {
@@ -58,15 +68,7 @@ pub async fn process_stdin(
                 );
             }
         },
-        async {
-            loop {
-                passkey_change_receiver.next().await.unwrap();
-                println!(
-                    "{}",
-                    serde_json::to_string(&Message::PasskeyChange).unwrap()
-                );
-            }
-        },
+        passkey_change_fut,
         async {
             loop {
                 ble_on_change_receiver.next().await.unwrap();

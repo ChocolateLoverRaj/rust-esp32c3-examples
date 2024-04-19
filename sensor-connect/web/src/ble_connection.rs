@@ -1,3 +1,4 @@
+use common::{PASSKEY_UUID, SERVICE_UUID};
 use futures::{SinkExt, StreamExt};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -5,8 +6,6 @@ use web_sys::{
     BluetoothDevice,
     js_sys::{Array, JsString, Object}, RequestDeviceOptions, window,
 };
-
-use common::{SERVICE_UUID, SHORT_NAME_UUID};
 
 use crate::ble_connection::ble_string_serializer::BleStringSerializer;
 use crate::ble_connection::ble_u32_serializer::BleU32Serializer;
@@ -20,11 +19,11 @@ use self::{
 
 mod ble_characteristic;
 mod ble_serializer;
-mod get_service;
-mod get_short_name_characteristic;
 mod ble_string_serializer;
 mod ble_u32_serializer;
 mod get_characteristic;
+mod get_service;
+mod get_short_name_characteristic;
 
 #[derive(Debug)]
 pub struct BleConnection {
@@ -67,18 +66,20 @@ impl ConnectionBuilder for BleConnectionBuilder {
                             &JsString::from("services"),
                             &Array::of1(&JsString::from(SERVICE_UUID)),
                         )))
-                            .unwrap(),
+                        .unwrap(),
                     )),
                 ),
         )
-            .await?
-            .dyn_into()?;
+        .await?
+        .dyn_into()?;
         JsFuture::from(device.gatt().unwrap().connect()).await?;
         let service = get_service(&device).await;
         let characteristic = get_short_name_characteristic(&service).await;
         Ok(Box::new(BleConnection {
             name_characteristic: BleCharacteristic::new(characteristic),
-            passkey_characteristic: BleCharacteristic::new(get_characteristic(&service, SHORT_NAME_UUID).await),
+            passkey_characteristic: BleCharacteristic::new(
+                get_characteristic(&service, PASSKEY_UUID).await,
+            ),
         }))
     }
 }

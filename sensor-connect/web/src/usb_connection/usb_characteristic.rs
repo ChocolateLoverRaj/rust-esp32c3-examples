@@ -14,14 +14,23 @@ use crate::connection::Characteristic;
 use crate::usb_connection::message_writer::MessageWriter;
 use crate::usb_connection::usb_characteristic_messenger::UsbCharacteristicMessenger;
 
-pub struct UsbCharacteristic<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> {
+pub struct UsbCharacteristic<
+    T,
+    M: UsbCharacteristicMessenger<T>,
+    S: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static,
+> {
     _phantom_data_t: PhantomData<T>,
     _phantom_data_m: PhantomData<M>,
     message_writer: MessageWriter,
     message_stream: StreamBroadcastUnlimited<S>,
 }
 
-impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> Clone for UsbCharacteristic<T, M, S> {
+impl<
+        T,
+        M: UsbCharacteristicMessenger<T>,
+        S: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static,
+    > Clone for UsbCharacteristic<T, M, S>
+{
     fn clone(&self) -> Self {
         Self {
             _phantom_data_m: self._phantom_data_m.clone(),
@@ -32,13 +41,23 @@ impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + 
     }
 }
 
-impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> Debug for UsbCharacteristic<T, M, S> {
+impl<
+        T,
+        M: UsbCharacteristicMessenger<T>,
+        S: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static,
+    > Debug for UsbCharacteristic<T, M, S>
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "USB Characteristic")
     }
 }
 
-impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> Characteristic<T> for UsbCharacteristic<T, M, S> {
+impl<
+        T,
+        M: UsbCharacteristicMessenger<T>,
+        S: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static,
+    > Characteristic<T> for UsbCharacteristic<T, M, S>
+{
     fn watch(&self) -> ReadSignal<Option<T>> {
         let message_writer = self.message_writer.clone();
         let message_stream = self.message_stream.clone();
@@ -54,34 +73,39 @@ impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + 
                     None => None,
                 }
             })
-                .chain({
-                    let message_writer = self.message_writer.clone();
-                    let message_stream = self.message_stream.clone();
+            .chain({
+                let message_writer = self.message_writer.clone();
+                let message_stream = self.message_stream.clone();
 
-                    stream_broadcast_unlimited.filter_map(move |(_id, message)| {
-                        let write_stream = message_writer.clone();
-                        let message_stream = message_stream.clone();
+                stream_broadcast_unlimited.filter_map(move |(_id, message)| {
+                    let write_stream = message_writer.clone();
+                    let message_stream = message_stream.clone();
 
-                        async move {
-                            match message {
-                                MessageFromEsp::Event(event) => match event {
-                                    Message::ShortNameChange => {
-                                        Some(Self::get_name(write_stream, message_stream).await)
-                                    }
-                                    _ => None,
-                                },
-                                MessageFromEsp::Response(_) => None,
-                            }
+                    async move {
+                        match message {
+                            MessageFromEsp::Event(event) => match event {
+                                Message::ShortNameChange => {
+                                    Some(Self::get_name(write_stream, message_stream).await)
+                                }
+                                _ => None,
+                            },
+                            MessageFromEsp::Response(_) => None,
                         }
-                    })
-                })))
+                    }
+                })
+            }),
+        ))
     }
 
-    fn set(&self, new_value: T) -> Box<dyn Future<Output=()> + Unpin> {
+    fn set(&self, new_value: T) -> Box<dyn Future<Output = ()> + Unpin> {
         let message_to_esp = MessageToEsp::new(M::create_set_request(new_value));
         let mut characteristic = self.clone();
         Box::new(Box::pin(async move {
-            characteristic.message_writer.write(&message_to_esp).await.unwrap();
+            characteristic
+                .message_writer
+                .write(&message_to_esp)
+                .await
+                .unwrap();
             loop {
                 let (_id, message) = characteristic.message_stream.next().await.unwrap();
                 match message {
@@ -100,11 +124,16 @@ impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + 
     }
 }
 
-impl<T, M: UsbCharacteristicMessenger<T>, S: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> UsbCharacteristic<T, M, S> {
+impl<
+        T,
+        M: UsbCharacteristicMessenger<T>,
+        S: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static,
+    > UsbCharacteristic<T, M, S>
+{
     fn get_name(
         message_writer: MessageWriter,
         mut message_stream: StreamBroadcastUnlimited<S>,
-    ) -> Box<dyn std::future::Future<Output=T> + Unpin> {
+    ) -> Box<dyn std::future::Future<Output = T> + Unpin> {
         Box::new(Box::pin(async move {
             let message_to_esp = MessageToEsp::new(M::create_get_request());
             message_writer.write(&message_to_esp).await.unwrap();

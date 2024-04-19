@@ -16,7 +16,7 @@ pub struct MessageWriter {
 impl MessageWriter {
     pub fn new(writer: WritableStreamDefaultWriter) -> Self {
         Self {
-            writer: Rc::new(Mutex::new(writer))
+            writer: Rc::new(Mutex::new(writer)),
         }
     }
     pub async fn write(&self, message: &MessageToEsp) -> Result<(), JsValue> {
@@ -24,7 +24,7 @@ impl MessageWriter {
         JsFuture::from(write_stream.write_with_chunk(&Uint8Array::from(
             format!("{}\n", serde_json::to_string(message).unwrap()).as_bytes(),
         )))
-            .await?;
+        .await?;
         Ok(())
     }
 }

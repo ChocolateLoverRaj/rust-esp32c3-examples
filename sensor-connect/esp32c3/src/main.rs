@@ -15,7 +15,7 @@ use esp_idf_sys as _;
 use futures::{channel::mpsc::channel, join};
 use log::info;
 
-use common::SERVICE_UUID;
+use common::{INITIAL_PASSKEY, SERVICE_UUID};
 
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
@@ -45,7 +45,6 @@ mod stdin;
 mod subscribable2;
 mod vl53l0x_sensor;
 
-const INITIAL_PASSKEY: u32 = 123456;
 const NVS_NAMESPACE: &str = "sensor_connect";
 const NVS_TAG_PASSKEY: &str = "passkey";
 

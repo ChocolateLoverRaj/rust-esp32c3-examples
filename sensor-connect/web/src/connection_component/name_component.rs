@@ -1,8 +1,14 @@
 use std::rc::Rc;
 
-use leptos::{component, create_action, create_memo, create_rw_signal, IntoView, MaybeSignal, SignalGet, SignalSet, SignalWith, view};
+use leptos::{
+    component, create_action, create_memo, create_rw_signal, view, IntoView, SignalGet, SignalSet,
+    SignalWith,
+};
 
-use crate::{connection::{Characteristic, Connection}, connection_component::{SetName, SetNameProps}};
+use crate::{
+    connection::Characteristic,
+    connection_component::{SetName, SetNameProps},
+};
 
 #[component]
 pub fn NameComponent(name_characteristic: Rc<Box<dyn Characteristic<String>>>) -> impl IntoView {

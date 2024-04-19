@@ -13,7 +13,7 @@ impl UsbCharacteristicMessenger<String> for NameMessenger {
     fn find_get_response(response_data: ResponseData) -> Option<String> {
         match response_data {
             common::ResponseData::GetShortName(name) => Some(name),
-            _ => None
+            _ => None,
         }
     }
 

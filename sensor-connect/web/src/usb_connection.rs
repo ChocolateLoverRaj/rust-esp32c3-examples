@@ -1,40 +1,40 @@
 use std::fmt::Debug;
 
-use ansitok::{ElementKind, parse_ansi};
+use ansitok::{parse_ansi, ElementKind};
 use futures::{AsyncBufReadExt, StreamExt, TryStreamExt};
 use futures_core::FusedStream;
 use stream_broadcast::StreamBroadcastExt;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    ReadableStreamDefaultReader, SerialOptions, SerialPort, window, WritableStreamDefaultWriter,
+    window, ReadableStreamDefaultReader, SerialOptions, SerialPort, WritableStreamDefaultWriter,
 };
 
 use common::MessageFromEsp;
 
-use crate::{
-    connection::{Connection, ConnectionBuilder},
-    readable_stream::get_readable_stream,
-};
 use crate::connection::Characteristic;
 use crate::usb_connection::message_writer::MessageWriter;
 use crate::usb_connection::name_messenger::NameMessenger;
 use crate::usb_connection::passkey_messenger::PasskeyMessenger;
 use crate::usb_connection::usb_characteristic::UsbCharacteristic;
+use crate::{
+    connection::{Connection, ConnectionBuilder},
+    readable_stream::get_readable_stream,
+};
 
+mod message_writer;
+mod name_messenger;
+mod passkey_messenger;
 mod usb_characteristic;
 mod usb_characteristic_messenger;
-mod name_messenger;
-mod message_writer;
-mod passkey_messenger;
 
-pub struct UsbConnection<T: FusedStream<Item=MessageFromEsp> + Sized + Unpin + 'static> {
+pub struct UsbConnection<T: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static> {
     name_characteristic: UsbCharacteristic<String, NameMessenger, T>,
     passkey_characteristic: UsbCharacteristic<u32, PasskeyMessenger, T>,
 }
 
-impl<T: FusedStream<Item=MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
-Connection for UsbConnection<T>
+impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
+    Connection for UsbConnection<T>
 {
     fn get_connection_type(&self) -> String {
         "USB".into()
@@ -49,8 +49,8 @@ Connection for UsbConnection<T>
     }
 }
 
-impl<T: FusedStream<Item=MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static> Debug
-for UsbConnection<T>
+impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static> Debug
+    for UsbConnection<T>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "USB Connection")
@@ -104,13 +104,19 @@ impl ConnectionBuilder for UsbConnectionBuilder {
                     message_from_esp
                 }),
         )
-            .fuse()
-            .broadcast_unlimited();
+        .fuse()
+        .broadcast_unlimited();
 
         let message_writer = MessageWriter::new(write_stream.clone());
         Ok(Box::new(UsbConnection {
-            name_characteristic: UsbCharacteristic::new(message_stream.clone(), message_writer.clone()),
-            passkey_characteristic: UsbCharacteristic::new(message_stream.clone(), message_writer.clone()),
+            name_characteristic: UsbCharacteristic::new(
+                message_stream.clone(),
+                message_writer.clone(),
+            ),
+            passkey_characteristic: UsbCharacteristic::new(
+                message_stream.clone(),
+                message_writer.clone(),
+            ),
         }))
     }
 }

@@ -5,7 +5,7 @@ use wasm_bindgen::JsValue;
 
 pub trait Characteristic<T> {
     fn watch(&self) -> ReadSignal<Option<T>>;
-    fn set(&self, new_value: T) -> Box<dyn Future<Output=()> + Unpin>;
+    fn set(&self, new_value: T) -> Box<dyn Future<Output = ()> + Unpin>;
 }
 
 pub trait Connection: Debug {

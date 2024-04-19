@@ -11,9 +11,7 @@ impl BleSerializer<String> for BleStringSerializer {
     }
 
     fn deserialize(data: DataView) -> String {
-        String::from_utf8(
-            Uint8Array::new(&data.buffer()).to_vec(),
-        ).unwrap()
+        String::from_utf8(Uint8Array::new(&data.buffer()).to_vec()).unwrap()
     }
 }
 

@@ -1,12 +1,12 @@
 use std::{marker::PhantomData, rc::Rc, time::Duration};
 
-use futures::{lock::Mutex, SinkExt, stream::unfold, StreamExt};
+use futures::{lock::Mutex, stream::unfold, SinkExt, StreamExt};
 use leptos::{create_effect, create_signal_from_stream, on_cleanup};
-use try_again::{Retry, retry_async};
+use try_again::{retry_async, Retry};
 use wasm_bindgen::{closure::Closure, JsCast};
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::{spawn_local, JsFuture};
 use wasm_bindgen_test::console_log;
-use web_sys::{BluetoothRemoteGattCharacteristic, js_sys::DataView, window};
+use web_sys::{js_sys::DataView, window, BluetoothRemoteGattCharacteristic};
 
 use crate::connection::Characteristic;
 
@@ -100,7 +100,19 @@ impl<T, S: BleSerializer<T>> Characteristic<T> for BleCharacteristic<T, S> {
                     match first {
                         Some(characteristic) => Some((
                             async move {
-                                let data: DataView = JsFuture::from(characteristic.read_value())
+                                let data: DataView = retry_async(
+                                    Retry {
+                                        max_tries: 10,
+                                        delay: Some(try_again::Delay::ExponentialBackoff {
+                                            initial_delay: Duration::from_millis(10),
+                                            max_delay: Some(Duration::from_secs(5)),
+                                        }),
+                                    },
+                                    window().unwrap(),
+                                    || async {
+                                        JsFuture::from(characteristic.read_value()).await
+                                    },
+                                )
                                     .await
                                     .unwrap()
                                     .dyn_into()

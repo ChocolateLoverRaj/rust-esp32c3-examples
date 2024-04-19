@@ -12,8 +12,8 @@ pub async fn get_service(device: &BluetoothDevice) -> BluetoothRemoteGattService
             .unwrap()
             .get_primary_service_with_str(SERVICE_UUID),
     )
-        .await
-        .unwrap()
-        .dyn_into()
-        .unwrap()
+    .await
+    .unwrap()
+    .dyn_into()
+    .unwrap()
 }
