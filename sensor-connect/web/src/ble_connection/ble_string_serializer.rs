@@ -14,9 +14,3 @@ impl BleSerializer<String> for BleStringSerializer {
         String::from_utf8(Uint8Array::new(&data.buffer()).to_vec()).unwrap()
     }
 }
-
-impl Default for BleStringSerializer {
-    fn default() -> Self {
-        Self {}
-    }
-}

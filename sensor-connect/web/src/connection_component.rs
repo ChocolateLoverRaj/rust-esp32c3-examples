@@ -7,12 +7,14 @@ use name_component::{NameComponent, NameComponentProps};
 use set_name::{SetName, SetNameProps};
 
 use crate::connection::Connection;
+use crate::connection_component::ble_on_component::{BleOnComponent, BleOnComponentProps};
 use crate::connection_component::passkey_component::{PasskeyComponent, PasskeyComponentProps};
 
 mod name_component;
 mod passkey_component;
 mod set_name;
 mod set_passkey;
+mod ble_on_component;
 
 #[component]
 pub fn ConnectionComponent(connection: MaybeSignal<Rc<Box<dyn Connection>>>) -> impl IntoView {
@@ -27,6 +29,9 @@ pub fn ConnectionComponent(connection: MaybeSignal<Rc<Box<dyn Connection>>>) -> 
             }))
             .child(PasskeyComponent(PasskeyComponentProps {
                 passkey_characteristic: Rc::new(connection.get().passkey()),
+            }))
+            .child(BleOnComponent(BleOnComponentProps {
+                characteristic: Rc::new(connection.get().ble_on())
             })),
     )
 }

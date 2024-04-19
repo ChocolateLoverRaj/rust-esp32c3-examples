@@ -18,9 +18,3 @@ impl BleSerializer<u32> for BleU32Serializer {
         u32::from_be_bytes(Uint8Array::new(&data.buffer()).to_vec().try_into().unwrap())
     }
 }
-
-impl Default for BleU32Serializer {
-    fn default() -> Self {
-        Self {}
-    }
-}

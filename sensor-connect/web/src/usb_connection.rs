@@ -21,16 +21,19 @@ use crate::{
     connection::{Connection, ConnectionBuilder},
     readable_stream::get_readable_stream,
 };
+use crate::usb_connection::ble_on_messenger::BleOnMessenger;
 
 mod message_writer;
 mod name_messenger;
 mod passkey_messenger;
 mod usb_characteristic;
 mod usb_characteristic_messenger;
+mod ble_on_messenger;
 
 pub struct UsbConnection<T: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static> {
     name_characteristic: UsbCharacteristic<String, NameMessenger, T>,
     passkey_characteristic: UsbCharacteristic<u32, PasskeyMessenger, T>,
+    ble_on_characteristic: UsbCharacteristic<bool, BleOnMessenger, T>
 }
 
 impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
@@ -46,6 +49,10 @@ impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin 
 
     fn passkey(&self) -> Box<dyn Characteristic<u32>> {
         Box::new(self.passkey_characteristic.clone())
+    }
+
+    fn ble_on(&self) -> Box<dyn Characteristic<bool>> {
+        Box::new(self.ble_on_characteristic.clone())
     }
 }
 
@@ -117,6 +124,10 @@ impl ConnectionBuilder for UsbConnectionBuilder {
                 message_stream.clone(),
                 message_writer.clone(),
             ),
+            ble_on_characteristic: UsbCharacteristic::new(
+                message_stream.clone(),
+                message_writer.clone(),
+            )
         }))
     }
 }

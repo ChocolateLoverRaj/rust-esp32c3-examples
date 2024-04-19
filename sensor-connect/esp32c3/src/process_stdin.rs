@@ -57,6 +57,13 @@ pub async fn process_stdin(
         }
     };
 
+    let ble_on_change_fut = async {
+        loop {
+            ble_on_change_receiver.next().await.unwrap();
+            println!("{}", serde_json::to_string(&MessageFromEsp::Event(Message::BleOnChange)).unwrap());
+        }
+    };
+
     join!(
         async {
             loop {
@@ -69,12 +76,7 @@ pub async fn process_stdin(
             }
         },
         passkey_change_fut,
-        async {
-            loop {
-                ble_on_change_receiver.next().await.unwrap();
-                println!("{}", serde_json::to_string(&Message::BleOnChange).unwrap());
-            }
-        },
+        ble_on_change_fut,
         async {
             let mut ir_subscription_id = None::<usize>;
             let (mut ir_tx, mut ir_rx) = channel::<UnboundedReceiver<IrData>>(0);

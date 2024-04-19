@@ -12,6 +12,7 @@ pub trait Connection: Debug {
     fn get_connection_type(&self) -> String;
     fn name(&self) -> Box<dyn Characteristic<String>>;
     fn passkey(&self) -> Box<dyn Characteristic<u32>>;
+    fn ble_on(&self) -> Box<dyn Characteristic<bool>>;
 }
 
 impl PartialEq<Box<dyn Connection>> for Box<dyn Connection> {

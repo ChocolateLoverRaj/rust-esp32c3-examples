@@ -1,4 +1,4 @@
-use common::{PASSKEY_UUID, SERVICE_UUID};
+use common::{BLE_ON_UUID, PASSKEY_UUID, SERVICE_UUID};
 use futures::{SinkExt, StreamExt};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -6,6 +6,7 @@ use web_sys::{
     BluetoothDevice,
     js_sys::{Array, JsString, Object}, RequestDeviceOptions, window,
 };
+use crate::ble_connection::ble_bool_serializer::BleBoolSerializer;
 
 use crate::ble_connection::ble_string_serializer::BleStringSerializer;
 use crate::ble_connection::ble_u32_serializer::BleU32Serializer;
@@ -24,11 +25,13 @@ mod ble_u32_serializer;
 mod get_characteristic;
 mod get_service;
 mod get_short_name_characteristic;
+mod ble_bool_serializer;
 
 #[derive(Debug)]
 pub struct BleConnection {
     name_characteristic: BleCharacteristic<String, BleStringSerializer>,
     passkey_characteristic: BleCharacteristic<u32, BleU32Serializer>,
+    ble_on_characteristic: BleCharacteristic<bool, BleBoolSerializer>,
 }
 
 impl Connection for BleConnection {
@@ -42,6 +45,10 @@ impl Connection for BleConnection {
 
     fn passkey(&self) -> Box<dyn Characteristic<u32>> {
         Box::new(self.passkey_characteristic.clone())
+    }
+
+    fn ble_on(&self) -> Box<dyn Characteristic<bool>> {
+        Box::new(self.ble_on_characteristic.clone())
     }
 }
 
@@ -66,20 +73,20 @@ impl ConnectionBuilder for BleConnectionBuilder {
                             &JsString::from("services"),
                             &Array::of1(&JsString::from(SERVICE_UUID)),
                         )))
-                        .unwrap(),
+                            .unwrap(),
                     )),
                 ),
         )
-        .await?
-        .dyn_into()?;
+            .await?
+            .dyn_into()?;
         JsFuture::from(device.gatt().unwrap().connect()).await?;
         let service = get_service(&device).await;
-        let characteristic = get_short_name_characteristic(&service).await;
         Ok(Box::new(BleConnection {
-            name_characteristic: BleCharacteristic::new(characteristic),
+            name_characteristic: BleCharacteristic::new(get_short_name_characteristic(&service).await),
             passkey_characteristic: BleCharacteristic::new(
                 get_characteristic(&service, PASSKEY_UUID).await,
             ),
+            ble_on_characteristic: BleCharacteristic::new(get_characteristic(&service, BLE_ON_UUID).await),
         }))
     }
 }
