@@ -53,6 +53,7 @@
             python3Packages.pip
             python3Packages.virtualenv
             libudev-zero
+            ldproxy
 
             (rust-bin.fromRustupToolchainFile ./usb-echo/rust-toolchain.toml)
             espflash
