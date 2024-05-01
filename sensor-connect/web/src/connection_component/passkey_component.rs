@@ -60,7 +60,7 @@ pub fn PasskeyComponent(passkey_characteristic: Rc<Box<dyn Characteristic<u32>>>
                             button().child("Save").on(ev::click, move |_e| {
                                 match input_element.get().unwrap().value().parse::<u32>() {
                                     Ok(passkey) => {
-                                        if passkey >= 0 && passkey <= 999999 {
+                                        if passkey <= 999999 {
                                             set_passkey.dispatch(passkey);
                                             // TODO: Error handling
                                             changing_passkey.set(false);

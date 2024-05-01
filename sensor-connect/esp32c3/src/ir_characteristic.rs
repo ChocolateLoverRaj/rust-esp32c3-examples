@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use esp32_nimble::{utilities::BleUuid, uuid128, BLEService, NimbleProperties, NimbleSub};
 use futures::{
@@ -6,10 +7,10 @@ use futures::{
     Future, StreamExt,
 };
 use log::info;
+use common::BLE_IR;
+use common::ir_data::IrData;
 
-use crate::ir_sensor::{IrData, IrSensor, IrSubscribable};
-
-const BLE_IR: BleUuid = uuid128!("51b80f42-a10e-4912-852b-b155a5610557");
+use crate::ir_sensor::{IrSensor, IrSubscribable};
 
 pub fn create_ir_characteristic(
     service: &Arc<esp32_nimble::utilities::mutex::Mutex<BLEService>>,
@@ -18,7 +19,7 @@ pub fn create_ir_characteristic(
 ) -> impl Future<Output = ()> {
     let characteristic = service
         .lock()
-        .create_characteristic(BLE_IR, NimbleProperties::READ | NimbleProperties::NOTIFY);
+        .create_characteristic(BleUuid::from_uuid128_string(BLE_IR).unwrap(), NimbleProperties::READ | NimbleProperties::NOTIFY);
 
     let subscribed_id = Mutex::new(None::<usize>);
     let (mut tx, mut rx) = channel::<UnboundedReceiver<IrData>>(0);
@@ -26,11 +27,14 @@ pub fn create_ir_characteristic(
     characteristic
         .lock()
         .on_read(move |att_value, _| {
-            att_value.set_value(&[ir_sensor
-                .lock()
-                .unwrap()
-                .turn_on_and_check_is_receiving_light()
-                .into()])
+            att_value.set_value(&IrData {
+                is_receiving_light: ir_sensor
+                    .lock()
+                    .unwrap()
+                    .turn_on_and_check_is_receiving_light()
+                    .into(),
+                time: SystemTime::now()
+            }.to_bytes());
         })
         .on_subscribe({
             move |characteristic, _, sub| {
@@ -43,6 +47,7 @@ pub fn create_ir_characteristic(
                 } else if sub.is_empty() && subscribed_count == 0 {
                     info!("Stop watching IR receiver");
                     ir_subscribable.unsubscribe(subscribed_id.lock().unwrap().unwrap());
+                    info!("unsubscribed from IR receiver");
                 }
             }
         });

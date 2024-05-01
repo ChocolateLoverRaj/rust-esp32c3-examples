@@ -1,22 +1,25 @@
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use esp32_nimble::{utilities::BleUuid, uuid128, BLEService, NimbleProperties, NimbleSub};
 use futures::{
     channel::mpsc::{channel, UnboundedReceiver},
     Future, StreamExt,
 };
+use log::info;
+use common::distance_data::DistanceData;
+use common::DISTANCE_UUID;
 
-use crate::vl53l0x_sensor::{DistanceData, DistanceSensor, DistanceSubscribable};
-
-const BLE_DISTANCE: BleUuid = uuid128!("c85a22c0-ffa0-46f1-94c7-d108f8e4df9e");
+use crate::vl53l0x_sensor::{DistanceSensor, DistanceSubscribable};
 
 pub fn create_distance_characteristic(
     service: &Arc<esp32_nimble::utilities::mutex::Mutex<BLEService>>,
     mut distance_subscribable: DistanceSubscribable,
     distance_sensor: Arc<futures::lock::Mutex<DistanceSensor>>,
 ) -> impl Future<Output = ()> {
+    info!("Creating distance characteristic");
     let characteristic = service.lock().create_characteristic(
-        BLE_DISTANCE,
+        BleUuid::from_uuid128_string(DISTANCE_UUID).unwrap(),
         NimbleProperties::READ | NimbleProperties::NOTIFY,
     );
 
@@ -35,8 +38,11 @@ pub fn create_distance_characteristic(
                         .vl53l0x
                         .read_range_single_millimeters_blocking()
                         .unwrap();
-                    log::info!("Distance: {}mm", distance);
-                    att_value.set_value(&distance.to_be_bytes());
+                    info!("Distance: {}mm", distance);
+                    att_value.set_value(&DistanceData {
+                        distance,
+                        time: SystemTime::now()
+                    }.to_bytes());
                 }
             }
         })

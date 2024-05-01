@@ -5,10 +5,12 @@ use web_sys::{BluetoothRemoteGattCharacteristic, BluetoothRemoteGattService};
 pub async fn get_characteristic(
     service: &BluetoothRemoteGattService,
     uuid: &str,
-) -> BluetoothRemoteGattCharacteristic {
+) -> Option<BluetoothRemoteGattCharacteristic> {
     JsFuture::from(service.get_characteristic_with_str(uuid))
         .await
-        .unwrap()
-        .dyn_into()
-        .unwrap()
+        .ok()
+        .map(|characteristic| characteristic
+            .dyn_into()
+            .unwrap()
+        )
 }

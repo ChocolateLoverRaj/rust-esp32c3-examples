@@ -1,4 +1,3 @@
-use common::validate_short_name::SHORT_NAME_MAX_LENGTH;
 use leptos::{
     component, create_effect, create_node_ref, ev,
     html::{button, input, td, Input},

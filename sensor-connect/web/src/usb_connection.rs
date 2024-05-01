@@ -9,6 +9,8 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     window, ReadableStreamDefaultReader, SerialOptions, SerialPort, WritableStreamDefaultWriter,
 };
+use common::distance_data::DistanceData;
+use common::ir_data::IrData;
 
 use common::MessageFromEsp;
 
@@ -53,6 +55,14 @@ impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin 
 
     fn ble_on(&self) -> Box<dyn Characteristic<bool>> {
         Box::new(self.ble_on_characteristic.clone())
+    }
+
+    fn get_ir_led_characteristic(&self) -> Option<Box<dyn Characteristic<IrData>>> {
+        None
+    }
+
+    fn get_distance_characteristic(&self) -> Option<Box<dyn Characteristic<DistanceData>>> {
+        None
     }
 }
 

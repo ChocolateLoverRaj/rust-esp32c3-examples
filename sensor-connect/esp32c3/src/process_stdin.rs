@@ -14,16 +14,18 @@ use serde::Serialize;
 use common::{
     Capabilities, CommandData, GetSet, Message, MessageFromEsp,
     MessageToEsp, Response, ResponseData, Subscribe, validate_short_name::validate_short_name,
+    ir_data::IrData
 };
+use common::distance_data::DistanceData;
 
 use crate::{
     ble_on_characteristic::BleOnCharacteristic,
     info::get_info,
-    ir_sensor::{IrData, IrSensor, IrSubscribable},
+    ir_sensor::{IrSensor, IrSubscribable},
     passkey_characteristic::PasskeyCharacteristic,
     short_name_characteristic::ShortNameCharacteristic,
     stdin::get_stdin_stream,
-    vl53l0x_sensor::{DistanceData, DistanceSubscribable},
+    vl53l0x_sensor::{DistanceSubscribable},
 };
 
 pub struct IrInput {

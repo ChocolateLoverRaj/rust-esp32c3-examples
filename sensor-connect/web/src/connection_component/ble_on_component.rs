@@ -4,7 +4,6 @@ use leptos::{component, ev, IntoView, SignalGet};
 use leptos::html::{input, td, th, tr};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use wasm_bindgen_test::console_log;
 use web_sys::HtmlInputElement;
 
 use crate::connection::Characteristic;

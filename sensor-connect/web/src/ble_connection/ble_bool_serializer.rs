@@ -1,6 +1,4 @@
-use leptos::leptos_dom::logging::console_log;
 use wasm_bindgen_futures::js_sys::{DataView, Uint8Array};
-use wasm_bindgen_test::console_log;
 
 use crate::ble_connection::ble_serializer::BleSerializer;
 
