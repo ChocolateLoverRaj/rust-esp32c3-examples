@@ -1,4 +1,4 @@
-use common::{CommandData, GetSet, ResponseData};
+use common::{CommandData, GetSet, Message, MessageToEsp, ResponseData};
 
 use crate::usb_connection::usb_characteristic_messenger::UsbCharacteristicMessenger;
 
@@ -14,6 +14,21 @@ impl UsbCharacteristicMessenger<bool> for BleOnMessenger {
         match response_data {
             ResponseData::GetBleOn(value) => Some(value),
             _ => None,
+        }
+    }
+
+    fn create_subscribe_request() -> Option<MessageToEsp> {
+        None
+    }
+
+    fn create_unsubscribe_request() -> Option<MessageToEsp> {
+        None
+    }
+
+    fn match_event(value: Message) -> bool {
+        match value {
+            Message::BleOnChange => true,
+            _ => false
         }
     }
 

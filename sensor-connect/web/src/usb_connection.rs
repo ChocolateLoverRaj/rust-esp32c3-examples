@@ -12,7 +12,7 @@ use web_sys::{
 use common::distance_data::DistanceData;
 use common::ir_data::IrData;
 
-use common::MessageFromEsp;
+use common::{CommandData, MessageFromEsp, MessageToEsp, ResponseData};
 
 use crate::connection::Characteristic;
 use crate::usb_connection::message_writer::MessageWriter;
@@ -24,6 +24,7 @@ use crate::{
     readable_stream::get_readable_stream,
 };
 use crate::usb_connection::ble_on_messenger::BleOnMessenger;
+use crate::usb_connection::distance_data_messenger::DistanceDataMessenger;
 
 mod message_writer;
 mod name_messenger;
@@ -31,11 +32,13 @@ mod passkey_messenger;
 mod usb_characteristic;
 mod usb_characteristic_messenger;
 mod ble_on_messenger;
+mod distance_data_messenger;
 
 pub struct UsbConnection<T: FusedStream<Item = MessageFromEsp> + Sized + Unpin + 'static> {
     name_characteristic: UsbCharacteristic<String, NameMessenger, T>,
     passkey_characteristic: UsbCharacteristic<u32, PasskeyMessenger, T>,
-    ble_on_characteristic: UsbCharacteristic<bool, BleOnMessenger, T>
+    ble_on_characteristic: UsbCharacteristic<bool, BleOnMessenger, T>,
+    distance_characteristic: Option<UsbCharacteristic<DistanceData, DistanceDataMessenger, T>>
 }
 
 impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin + 'static>
@@ -62,7 +65,10 @@ impl<T: FusedStream<Item = MessageFromEsp> + StreamBroadcastExt + Sized + Unpin 
     }
 
     fn get_distance_characteristic(&self) -> Option<Box<dyn Characteristic<DistanceData>>> {
-        None
+        self.distance_characteristic.as_ref().map(|characteristic| {
+            let r: Box<dyn Characteristic<DistanceData>> = Box::new(characteristic.to_owned());
+            r
+        })
     }
 }
 
@@ -125,6 +131,20 @@ impl ConnectionBuilder for UsbConnectionBuilder {
         .broadcast_unlimited();
 
         let message_writer = MessageWriter::new(write_stream.clone());
+        message_writer.write(&MessageToEsp::new(CommandData::GetCapabilities)).await.unwrap();
+        let message_from_esp = message_stream.clone().take(1).next().await.unwrap().1;
+        let capabilities = match message_from_esp {
+            MessageFromEsp::Response(response) => {
+                match response.data {
+                    ResponseData::GetCapabilities(capabilities) => {
+                        capabilities
+                    },
+                    _ => panic!()
+                }
+            },
+            _ => panic!()
+        };
+
         Ok(Box::new(UsbConnection {
             name_characteristic: UsbCharacteristic::new(
                 message_stream.clone(),
@@ -137,7 +157,11 @@ impl ConnectionBuilder for UsbConnectionBuilder {
             ble_on_characteristic: UsbCharacteristic::new(
                 message_stream.clone(),
                 message_writer.clone(),
-            )
+            ),
+            distance_characteristic: match capabilities.distance {
+                true => Some(UsbCharacteristic::new(message_stream.clone(), message_writer.clone())),
+                false => None
+            }
         }))
     }
 }

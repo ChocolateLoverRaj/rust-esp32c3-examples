@@ -1,5 +1,6 @@
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use crate::distance_data::DistanceData;
 
 pub const INITIAL_PASSKEY: u32 = 123456;
 pub const SERVICE_UUID: &str = "c5f93147-b051-4201-bb59-ff8f18db9876";
@@ -35,6 +36,7 @@ pub enum CommandData {
     Unsubscribe(Subscribe),
     ReadIr,
     GetCapabilities,
+    ReadDistance
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -57,9 +59,10 @@ pub enum Message {
     ShortNameChange,
     PasskeyChange,
     BleOnChange,
+    DistanceChange
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Capabilities {
     pub ir: bool,
     pub distance: bool,
@@ -72,6 +75,8 @@ pub enum ResponseData {
     GetPasskey(u32),
     GetBleOn(bool),
     Complete,
+    GetCapabilities(Capabilities),
+    GetDistance(DistanceData)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

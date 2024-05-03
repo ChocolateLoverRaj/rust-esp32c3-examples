@@ -1,7 +1,8 @@
 use std::ops::Add;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct DistanceData {
     pub distance: u16,
     pub time: SystemTime,

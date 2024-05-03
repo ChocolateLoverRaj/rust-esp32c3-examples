@@ -13,6 +13,7 @@ use esp_idf_hal::{peripherals::Peripherals, task};
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use futures::{channel::mpsc::channel, join};
+use futures::future::join3;
 use log::info;
 
 use common::{INITIAL_PASSKEY, SERVICE_UUID};
@@ -29,6 +30,7 @@ use crate::{
     short_name_characteristic::ShortNameCharacteristic,
     vl53l0x_sensor::{distance_loop, get_vl53l0x},
 };
+use crate::subscribable3::Subscribable3;
 
 mod async_vl53l0x;
 mod ble_on_characteristic;
@@ -44,6 +46,7 @@ mod short_name_characteristic;
 mod stdin;
 mod subscribable2;
 mod vl53l0x_sensor;
+mod subscribable3;
 
 const NVS_NAMESPACE: &str = "sensor_connect";
 const NVS_TAG_PASSKEY: &str = "passkey";
@@ -161,21 +164,25 @@ async fn main_async() {
         .ok()
         .map(|v| Arc::new(futures::lock::Mutex::new(v)));
     let maybe_distance = distance_sensor.clone().map(|distance_sensor| {
-        let (distance_future, distance_subscribable) = distance_loop(distance_sensor.clone());
+        let distance_subscribable = Arc::new(Subscribable3::default());
+        let (distance_future, distance_rx) = distance_loop(distance_sensor.clone(), distance_subscribable.clone());
         (
             {
                 let distance_sensor = distance_sensor.clone();
-                let distance_subscribable = distance_subscribable.clone();
+                // let distance_subscribable = distance_subscribable.clone();
                 let distance_characteristic_future = create_distance_characteristic(
                     &service,
-                    distance_subscribable,
-                    distance_sensor,
+                    distance_sensor.clone(),
+                    distance_rx.clone(),
+                    distance_subscribable.clone()
                 );
                 async move {
                     join!(distance_future, distance_characteristic_future);
                 }
             },
-            distance_subscribable.clone(),
+            distance_subscribable,
+            distance_rx,
+            distance_sensor
         )
     });
     if distance_sensor.is_some() {
@@ -183,9 +190,9 @@ async fn main_async() {
     } else {
         info!("Distance sensor not connected");
     }
-    let (distance_future, distance_subscribable) = match maybe_distance {
+    let (distance_future, distance) = match maybe_distance {
         None => (None, None),
-        Some((future, subscribable)) => (Some(future), Some(subscribable)),
+        Some((future, subscribable, rx, sensor)) => (Some(future), Some((subscribable, rx, sensor))),
     };
 
     ::log::info!(
@@ -199,7 +206,7 @@ async fn main_async() {
         BLEDevice::deinit().unwrap();
     }
 
-    join!(
+    join3(
         process_stdin(
             &mut short_name_characteristic,
             short_name_change_rx,
@@ -211,7 +218,7 @@ async fn main_async() {
                 ir_sensor: ir_sensor.clone(),
                 subscribable: ir_subscribable,
             }),
-            distance_subscribable,
+            distance,
         ),
         async {
             if let Some(future) = ir_future {
@@ -223,5 +230,5 @@ async fn main_async() {
                 future.await;
             }
         }
-    );
+    ).await;
 }

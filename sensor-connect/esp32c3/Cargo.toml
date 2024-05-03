@@ -48,6 +48,8 @@ slab = "0.4.9"
 vl53l0x = "0.3.1"
 nb = "1.1.0"
 common = { version = "0.1.0", path = "../common" }
+futures-signals = "0.3.33"
+async-channel = "2.2.1"
 
 [dependencies.hal]
 version = "0.2"

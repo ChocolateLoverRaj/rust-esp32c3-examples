@@ -1,4 +1,4 @@
-use common::{CommandData, ResponseData};
+use common::{CommandData, Message, MessageToEsp, ResponseData};
 
 use crate::usb_connection::usb_characteristic_messenger::UsbCharacteristicMessenger;
 
@@ -14,6 +14,21 @@ impl UsbCharacteristicMessenger<String> for NameMessenger {
         match response_data {
             common::ResponseData::GetShortName(name) => Some(name),
             _ => None,
+        }
+    }
+
+    fn create_subscribe_request() -> Option<MessageToEsp> {
+        None
+    }
+
+    fn create_unsubscribe_request() -> Option<MessageToEsp> {
+        None
+    }
+
+    fn match_event(value: Message) -> bool {
+        match value {
+            Message::ShortNameChange => true,
+            _ => false
         }
     }
 

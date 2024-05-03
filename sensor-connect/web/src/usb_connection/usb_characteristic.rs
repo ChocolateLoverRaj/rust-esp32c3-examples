@@ -69,7 +69,11 @@ impl<
             unfold(Some((message_writer, message_stream)), |first| async move {
                 match first {
                     Some((write_stream, message_stream)) => {
-                        let r = Some((Self::get_name(write_stream, message_stream).await, None));
+                        let r = Some((Self::get_name(write_stream.clone(), message_stream).await, None));
+                        if let Some(message) = M::create_subscribe_request() {
+                            // FIXME: Also unsubscribe
+                            write_stream.write(&message).await.unwrap();
+                        }
                         console_log!("r: {:#?}", r);
                         r
                     }
@@ -84,13 +88,16 @@ impl<
                         let write_stream = message_writer.clone();
                         let message_stream = message_stream.clone();
 
+                        console_log!("Message: {:#?}", message);
+
                         async move {
                             match message {
-                                MessageFromEsp::Event(event) => match event {
-                                    Message::ShortNameChange => {
-                                        Some(Self::get_name(write_stream, message_stream).await)
-                                    }
-                                    _ => None,
+                                MessageFromEsp::Event(event) => match M::match_event(event) {
+                                    true => Some({
+                                        console_log!("Got event. Finding");
+                                        Self::get_name(write_stream, message_stream).await
+                                    }),
+                                    false => None
                                 },
                                 MessageFromEsp::Response(_) => None,
                             }
