@@ -131,7 +131,7 @@ async fn main_async() {
 
     let (ir_future, ir_subscribable) = {
         let ir_sensor =
-            configure_and_get_ir_sensor(peripherals.pins.gpio21, peripherals.pins.gpio5)
+            configure_and_get_ir_sensor(peripherals.pins.gpio10, peripherals.pins.gpio7)
                 .map(|ir_sensor| Arc::new(Mutex::new(ir_sensor)));
         let ir = ir_sensor.map(|ir_sensor| {
             let (ir_future, ir_subscribable) = ir_loop(ir_sensor.clone(), peripherals.pins.gpio8);

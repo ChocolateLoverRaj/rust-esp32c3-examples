@@ -6,7 +6,7 @@ use std::{
 };
 
 use esp_idf_hal::gpio::{
-    AnyIOPin, Gpio21, Gpio5, Gpio8, IOPin, Input, InterruptType, Level, Output, PinDriver, Pull,
+    AnyIOPin, Gpio7, Gpio10, Gpio8, IOPin, Input, InterruptType, Level, Output, PinDriver, Pull,
 };
 use futures::{
     future::{select, Either},
@@ -17,7 +17,7 @@ use common::ir_data::IrData;
 use crate::subscribable2::Subscribable2;
 
 pub struct IrSensor {
-    led_pin: PinDriver<'static, Gpio21, Output>,
+    led_pin: PinDriver<'static, Gpio10, Output>,
     receiver_pin: PinDriver<'static, AnyIOPin, Input>,
 }
 impl IrSensor {
@@ -44,12 +44,12 @@ impl IrSensor {
     }
 }
 
-pub fn configure_and_get_ir_sensor(led_pin: Gpio21, gpio5: Gpio5) -> Option<IrSensor> {
-    let mut led_pin: PinDriver<'_, Gpio21, Input> = PinDriver::input(led_pin).unwrap();
+pub fn configure_and_get_ir_sensor(led_pin: Gpio10, receiver_gpio: Gpio7) -> Option<IrSensor> {
+    let mut led_pin: PinDriver<'_, Gpio10, Input> = PinDriver::input(led_pin).unwrap();
     led_pin.set_pull(Pull::Up).unwrap();
     if led_pin.is_low() {
         let led_pin = led_pin.into_output().unwrap();
-        let mut receiver_pin = PinDriver::input(gpio5.downgrade()).unwrap();
+        let mut receiver_pin = PinDriver::input(receiver_gpio.downgrade()).unwrap();
         receiver_pin.set_pull(Pull::Down).unwrap();
         receiver_pin
             .set_interrupt_type(InterruptType::AnyEdge)
