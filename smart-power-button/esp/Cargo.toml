@@ -32,13 +32,14 @@ smart-power-button-common = { version = "0.1.0", path = "../common" }
 chrono = "0.4.38"
 
 [features]
-default = ["std", "embassy", "esp-idf-svc/native"]
+default = ["std", "embassy", "esp-idf-svc/native", "static-files"]
 pio = ["esp-idf-svc/pio"]
 std = ["alloc", "esp-idf-svc/binstart", "esp-idf-svc/std"]
 alloc = ["esp-idf-svc/alloc"]
 nightly = ["esp-idf-svc/nightly"]
 experimental = ["esp-idf-svc/experimental"]
 embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-svc/embassy-time-driver"]
+static-files = []
 
 [build-dependencies]
 embuild = "0.32.0"

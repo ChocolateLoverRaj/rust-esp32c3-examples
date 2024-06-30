@@ -1,13 +1,5 @@
-# Smart Power Button for Desktop Computers
-## Why
-- My computer doesn't have Wake on LAN
-
-## Features
-- Remotely press the power and reset buttons of your computer, even when it's shut down or in suspend mode.
-- Remotely view the status of the power LED and HDD LED, so you know if it's on / in suspend mode / off.
-
-## Wiring Diagram and Pictures
-Will be added soon
+## What
+This folder contains the code that runs on a ESP microcontroller. I used a ESP32-C3, but you should be able to run it on many more (see `.cargo/config.toml`).
 
 ## Resources
 - This code is based off of https://github.com/lulingar/esp32-tokio-demo/tree/update-2024-04-26

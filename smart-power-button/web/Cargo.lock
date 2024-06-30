@@ -221,6 +221,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "git+https://github.com/aidenfarley/dotenvy?rev=3fd4af6df81580738c04d9688294d3f0110b4ef5#3fd4af6df81580738c04d9688294d3f0110b4ef5"
+
+[[package]]
+name = "dotenvy_macro"
+version = "0.15.7"
+source = "git+https://github.com/aidenfarley/dotenvy?rev=3fd4af6df81580738c04d9688294d3f0110b4ef5#3fd4af6df81580738c04d9688294d3f0110b4ef5"
+dependencies = [
+ "dotenvy",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "dtoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -773,6 +789,7 @@ name = "smart-power-button-web"
 version = "0.1.0"
 dependencies = [
  "async_ui_web",
+ "dotenvy_macro",
  "futures",
  "gloo-console",
  "postcard",

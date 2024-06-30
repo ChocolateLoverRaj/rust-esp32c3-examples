@@ -4,10 +4,15 @@ use http_body_util::combinators::BoxBody;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper::body::Bytes;
 use hyper::header::HeaderValue;
-use include_dir::DirEntry;
+use include_dir::{Dir, DirEntry};
 
-use crate::{ASSETS, Error};
+use crate::{Error};
 use crate::http_content_type::EXTENSION_MAP;
+
+#[cfg(feature = "static-files")]
+const ASSETS: Dir = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../web/dist");
+#[cfg(not(feature = "static-files"))]
+const ASSETS: Dir = Dir::new("", &[]);
 
 pub async fn serve_static(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Bytes, hyper::Error>>, Error> {
     // We create some utility functions to make Empty and Full bodies
@@ -33,7 +38,6 @@ pub async fn serve_static(req: Request<hyper::body::Incoming>) -> Result<Respons
                 DirEntry::File(file) => {
                     // Cache cuz it takes incredibly long to serve
                     let last_modified = file.metadata().unwrap().modified();
-                    // println!("Last modified: {last_modified:#?}");
                     let last_modified = DateTime::<Utc>::from(last_modified);
                     // println!("Last modified: {last_modified}");
                     let not_modified = req.headers().get("If-Modified-Since").map_or(false, |if_modified_since| {

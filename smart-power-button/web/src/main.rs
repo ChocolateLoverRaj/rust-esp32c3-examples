@@ -2,11 +2,13 @@ use async_ui_web::{join, mount};
 use async_ui_web::event_traits::EmitElementEvent;
 use async_ui_web::html::{Br, Button};
 use async_ui_web::shortcut_traits::{ShortcutRenderStr, UiFutureExt};
+use dotenvy_macro::option_dotenv;
 use futures::{SinkExt, StreamExt};
 use gloo_console::{error, log};
 use postcard::to_allocvec;
 use stream_broadcast::StreamBroadcastExt;
 use tokio::sync::Mutex;
+use web_sys::window;
 use ws_stream_wasm::{WsMessage, WsMeta};
 
 use smart_power_button_common::{MessageToEsp, MessageToWeb};
@@ -21,7 +23,10 @@ fn main() {
 }
 
 async fn app() {
-    match WsMeta::connect("ws://192.168.1.252/ws", None).meanwhile("Opening web socket".render()).await {
+    let ws_host = option_dotenv!("WS_HOST")
+        .map_or(window().unwrap().location().host().unwrap(), |s| s.to_owned());
+    let ws_url = format!("ws://{ws_host}");
+    match WsMeta::connect(ws_url, None).meanwhile("Opening web socket".render()).await {
         Ok((_ws_meta, ws_stream)) => {
             let (w, r) = ws_stream.split();
             let w = Mutex::new(w);
@@ -108,7 +113,7 @@ async fn app() {
                     )).await;
                 },
                 Br::new().render(),
-                async  {
+                async {
                     let reset_button = Button::new();
 
                     join((
