@@ -3,3 +3,6 @@ target
 node_modules
 build
 .direnv
+.env
+dist
+.idea
