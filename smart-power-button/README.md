@@ -1,6 +1,13 @@
 # Smart Power Button for Desktop Computers
 ## Why
-- My computer doesn't have Wake on LAN
+- I got a gaming computer that I will also remotely use for programming
+    - I want to play Overwatch
+    - I want to do CPU heavy coding stuff like compiling the Linux kernel from source and working on large Rust projects
+    - My Xbox (Xbox One S) can't run Overwatch well
+    - My laptop (jinlon (HP Elite c1030 Chromebook)), can't compile code fast
+- I want to remotely wake up my computer for programming
+    - My gaming computer is connected to the living room TV. It does not have a good spot for programming.
+- My computer can't Wake on LAN
 
 ## Features
 - Remotely press the power and reset buttons of your computer, even when it's shut down or in suspend mode.
