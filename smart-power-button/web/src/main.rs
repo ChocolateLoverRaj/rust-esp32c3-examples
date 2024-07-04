@@ -24,7 +24,7 @@ fn main() {
 
 async fn app() {
     let ws_host = option_dotenv!("WS_HOST")
-        .map_or(window().unwrap().location().host().unwrap(), |s| s.to_owned());
+        .map_or(window().unwrap().location().host().unwrap(), |s: &str| s.to_owned());
     let ws_url = format!("ws://{ws_host}");
     match WsMeta::connect(ws_url, None).meanwhile("Opening web socket".render()).await {
         Ok((_ws_meta, ws_stream)) => {
