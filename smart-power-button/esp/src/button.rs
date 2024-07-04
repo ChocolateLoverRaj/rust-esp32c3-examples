@@ -27,7 +27,7 @@ impl<T: OutputPin> Clone for Button<T> {
 impl<T: OutputPin> Button<T> {
     pub fn new(pin: T) -> Result<Self, EspError> {
         let mut button = PinDriver::output(pin)?;
-        button.set_high()?;
+        button.set_low()?;
         Ok(Self {
             pin: Arc::new(Mutex::new(button)),
             sender: channel(16).0,
@@ -41,15 +41,15 @@ impl<T: OutputPin> Button<T> {
 
     async fn set_and_broadcast(&self, pin: &mut PinDriver<'static, T, Output>, level: Level) {
         pin.set_level(level).unwrap();
-        *self.is_pressed.write().await = level == Level::Low;
+        *self.is_pressed.write().await = level == Level::High;
         self.sender.send(()).unwrap();
     }
 
     async fn press(&self, duration: Duration) {
         let mut pin = self.pin.lock().await;
-        self.set_and_broadcast(pin.deref_mut(), Level::Low).await;
-        sleep(duration).await;
         self.set_and_broadcast(pin.deref_mut(), Level::High).await;
+        sleep(duration).await;
+        self.set_and_broadcast(pin.deref_mut(), Level::Low).await;
     }
 
     pub async fn short_press(&self) {

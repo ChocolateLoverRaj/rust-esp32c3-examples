@@ -8,12 +8,12 @@ pub fn watch_input<T: InputPin + OutputPin>(pin: T) -> anyhow::Result<(impl Futu
     pin.set_pull(Pull::Down).unwrap();
     pin.set_interrupt_type(InterruptType::AnyEdge).unwrap();
     pin.enable_interrupt().unwrap();
-    let (tx, rx) = value_channel(pin.is_low());
+    let (tx, rx) = value_channel(pin.is_high());
     Ok((async move {
         loop {
             pin.wait_for_any_edge().await?;
             info!("Pin {} is: {:?}", pin.pin(), pin.get_level());
-            tx.update_if_changed(pin.is_low()).await;
+            tx.update_if_changed(pin.is_high()).await;
         }
     }, rx))
 }
