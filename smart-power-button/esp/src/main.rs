@@ -1,3 +1,7 @@
+use crate::gpio_pins_vec::GpioPinsVecExt;
+use crate::power_io::PowerIo;
+use crate::run_server::run_server;
+use crate::wifi_loop::WifiLoop;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
@@ -6,24 +10,18 @@ use esp_idf_svc::timer::EspTaskTimerService;
 use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use log::info;
 use tokio::join;
-use crate::gpio_pins_vec::GpioPinsVecExt;
-use crate::power_io::PowerIo;
-use crate::run_server::run_server;
-use crate::wifi_loop::WifiLoop;
 
-mod value_channel;
-mod http_content_type;
-mod wifi_loop;
 mod button;
-mod watch_input;
+mod gpio_pins_vec;
+mod handle_request;
+mod http_content_type;
+mod power_io;
+mod run_server;
 mod serve_static;
 mod serve_websocket;
-mod power_io;
-mod handle_request;
-mod run_server;
-mod gpio_pins_vec;
-mod string_to_error;
-
+mod value_channel;
+mod watch_input;
+mod wifi_loop;
 
 fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
@@ -48,9 +46,11 @@ fn main() -> anyhow::Result<()> {
     let wifi = AsyncWifi::wrap(
         EspWifi::new(peripherals.modem, sysloop.clone(), Some(nvs))?,
         sysloop,
-        timer.clone())?;
+        timer.clone(),
+    )?;
 
-    let mut pins = peripherals.pins
+    let mut pins = peripherals
+        .pins
         .into_indexable()
         .into_iter()
         .map(|pin| pin.into())
@@ -77,4 +77,3 @@ fn main() -> anyhow::Result<()> {
 }
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-
