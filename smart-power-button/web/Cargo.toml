@@ -16,3 +16,4 @@ wasm-bindgen-futures = "0.4.42"
 web-sys = { version = "0.3.69", features = ["WebSocket", "console"] }
 ws_stream_wasm = "0.7.4"
 dotenvy_macro = { git = "https://github.com/aidenfarley/dotenvy", rev = "3fd4af6df81580738c04d9688294d3f0110b4ef5", version = "0.15.7" }
+console_error_panic_hook = "0.1.7"
