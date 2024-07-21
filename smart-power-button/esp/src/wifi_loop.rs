@@ -35,18 +35,16 @@ impl<'a> WifiLoop<'a> {
         self.do_connect_loop(true).await
     }
 
-    pub fn get_ip_info(&self) -> Result<IpInfo, EspError> {
-        self.wifi.wifi().sta_netif().get_ip_info()
+    pub fn get_ip_info(&self) -> (IpInfo, heapless::String<30>) {
+        let netif = self.wifi.wifi().sta_netif();
+        (netif.get_ip_info().unwrap(), netif.get_hostname().unwrap())
     }
 
     pub async fn stay_connected(mut self) -> Result<(), EspError> {
         self.do_connect_loop(false).await
     }
 
-    async fn do_connect_loop(
-        &mut self,
-        exit_after_first_connect: bool,
-    ) -> Result<(), EspError> {
+    async fn do_connect_loop(&mut self, exit_after_first_connect: bool) -> Result<(), EspError> {
         let wifi = &mut self.wifi;
         loop {
             // Wait for disconnect before trying to connect again.  This loop ensures
@@ -60,7 +58,8 @@ impl<'a> WifiLoop<'a> {
             wifi.connect().await?;
 
             info!("Waiting for association...");
-            wifi.ip_wait_while(|this| this.is_up().map(|s| !s), None).await?;
+            wifi.ip_wait_while(|this| this.is_up().map(|s| !s), None)
+                .await?;
 
             if exit_after_first_connect {
                 return Ok(());

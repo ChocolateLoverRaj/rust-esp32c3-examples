@@ -6,8 +6,16 @@
 # The tokio runtime and typical programs built with it need quite a bit of
 # stack space, but the good news is that you don't need many pthreads for
 # a complete application.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16000
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=32000
 
 # Use this to set FreeRTOS kernel tick frequency to 1000 Hz (100 Hz by default).
 # This allows to use 1 ms granuality for thread sleeps (10 ms by default).
 CONFIG_FREERTOS_HZ=1000
+
+# https://github.com/taks/esp32-nimble?tab=readme-ov-file#usage
+CONFIG_BT_ENABLED=y
+CONFIG_BT_BLE_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=n
+CONFIG_BT_NIMBLE_ENABLED=y
+
+CONFIG_LWIP_LOCAL_HOSTNAME="gaming-computer-remote"

@@ -1,0 +1,10 @@
+[package]
+name = "smart-power-button-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+postcard = { version = "1.0.8", features = ["alloc"] }
+reqwest = "0.12.5"
+smart-power-button-common = { version = "0.1.0", path = "../common" }
+tokio = { version = "1.38.1", features = ["full"] }

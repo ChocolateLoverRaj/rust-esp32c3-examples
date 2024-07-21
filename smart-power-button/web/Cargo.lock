@@ -807,7 +807,6 @@ dependencies = [
  "smart-power-button-common",
  "stream-broadcast",
  "tokio",
- "wasm-bindgen-futures",
  "web-sys",
  "ws_stream_wasm",
 ]

@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use esp_idf_svc::hal::gpio::{Level, Output, OutputPin, PinDriver};
 use esp_idf_svc::sys::EspError;
-use tokio::sync::{Mutex, RwLock};
 use tokio::sync::broadcast::{channel, Sender};
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::sleep;
 
 pub struct Button<T: OutputPin> {
@@ -42,7 +42,7 @@ impl<T: OutputPin> Button<T> {
     async fn set_and_broadcast(&self, pin: &mut PinDriver<'static, T, Output>, level: Level) {
         pin.set_level(level).unwrap();
         *self.is_pressed.write().await = level == Level::High;
-        self.sender.send(()).unwrap();
+        let _ = self.sender.send(());
     }
 
     async fn press(&self, duration: Duration) {
@@ -89,4 +89,3 @@ impl<T: OutputPin> Button<T> {
 //         self.press(Duration::from_secs(6)).await
 //     }
 // }
-

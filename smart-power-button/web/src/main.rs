@@ -1,7 +1,9 @@
+#![warn(unused_crate_dependencies)]
+
 use std::panic;
 
 use async_ui_web::event_traits::EmitElementEvent;
-use async_ui_web::html::{Br, Button};
+use async_ui_web::html::{Br, Button, Input, Label};
 use async_ui_web::shortcut_traits::{ShortcutRenderStr, UiFutureExt};
 use async_ui_web::{join, mount};
 use dotenvy_macro::option_dotenv;
@@ -31,11 +33,11 @@ async fn app() {
             s.to_owned()
         });
     let ws_protocol = match window().unwrap().location().protocol().unwrap().as_str() {
-        "http" => "ws",
-        "https" => "wss",
+        "http:" => "ws",
+        "https:" => "wss",
         _ => unreachable!("Unknown protocol"),
     };
-    let ws_url = format!("${ws_protocol}://{ws_host}");
+    let ws_url = format!("{ws_protocol}://{ws_host}");
     match WsMeta::connect(ws_url, None)
         .meanwhile("Opening web socket".render())
         .await
@@ -97,8 +99,14 @@ async fn app() {
                 async {
                     let short_press_button = Button::new();
                     let long_press_button = Button::new();
+                    let should_turn_on_tv_input = Input::new_checkbox();
+
                     join((
                         short_press_button.render("Press power button".render()),
+                        Label::new().render(join((
+                            "Turn on TV (if turning on computer)".render(),
+                            should_turn_on_tv_input.render(),
+                        ))),
                         Br::new().render(),
                         long_press_button.render("Press power button for a long time".render()),
                         async {
@@ -124,7 +132,10 @@ async fn app() {
                                 w.lock()
                                     .await
                                     .send(WsMessage::Binary(
-                                        to_allocvec(&MessageToEsp::ShortPressPowerButton).unwrap(),
+                                        to_allocvec(&MessageToEsp::ShortPressPowerButton(
+                                            should_turn_on_tv_input.checked(),
+                                        ))
+                                        .unwrap(),
                                     ))
                                     .await
                                     .unwrap();
