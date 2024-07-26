@@ -82,7 +82,7 @@ async fn get_wakeup_reason(delete: bool) {
 
 #[tokio::main]
 async fn main() {
-    set_bluetooth_wakeup_devices().await;
+    // set_bluetooth_wakeup_devices().await;
     get_bluetooth_wakeup_devices().await;
     get_wakeup_reason(true).await;
 }
