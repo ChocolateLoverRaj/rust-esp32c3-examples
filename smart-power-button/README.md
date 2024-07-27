@@ -12,6 +12,8 @@
 ## Features
 - Remotely press the power and reset buttons of your computer, even when it's shut down or in suspend mode.
 - Remotely view the status of the power LED and HDD LED, so you know if it's on / in suspend mode / off.
+- Isolated circuits. The ESP32 does not need to have the same power source as the computer. For example, you can power it through USB-C that's connected to a laptop running on battery.
+- Turn on the computer automatically when a Bluetooth game controller or other Bluetooth device is on and within range.
 
 ## Code setup
 Copy `esp/example.env` to `esp/.env`. Edit the file to include your Wi-Fi info and GPIO pin numbers.
@@ -28,5 +30,20 @@ Flashing all the web assets to the ESP takes a long time and wears down the flas
 ### Running ESP in release mode to reduce size
 Running the `esp` code in with `--release` reduces size, which saves time.
 
-## Wiring Diagram and Pictures
-Will be added soon
+## Wiring Diagram
+![Fritzing Bread Board](./Sketch_bb.svg)
+
+## Pictures
+![Photo 0](./Photo%200.webp)
+![Photo 1](./Photo%201.webp)
+![Photo 2](./Photo%202.webp)
+![Photo 3](./Photo%203.webp)
+![Photo 4](./Photo%204.webp)
+![Photo 5](./Photo%205.webp)
+In my setup, I used an ATX power splitter so that I could access the 5VSB and GND pins to always power the ESP32-C3, even when the computer is off.
+
+## Materials Needed
+(In addition to a ESP32-C3)
+- 6x PC817 (or other optocoupler). I bought [this one](https://www.aliexpress.us/item/3256806236608107.html)
+- ATX Splitter (optional, for always powering the ESP32-C3 with the PSU). I bought [this one](https://www.aliexpress.us/item/3256805387697490.html?spm=a2g0o.order_list.order_list_main.38.36df1802MgpdVl&gatewayAdapt=glo2usa)
+- Breadboard and wires or some way of connecting the components together
