@@ -1319,6 +1319,7 @@ checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 [[package]]
 name = "smart-power-button-common"
 version = "0.1.0"
+source = "git+https://github.com/ChocolateLoverRaj/rust-esp32c3-examples.git#3fad318702e0351ae3035dcfce0bf612956088dc"
 dependencies = [
  "serde",
 ]
