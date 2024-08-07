@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 base64 = "0.22.1"
+chrono = "0.4.38"
 futures-util = "0.3.30"
 ir-remote = { version = "0.2.0", features = ["serde"] }
 native-tls = "0.2.12"
@@ -26,3 +27,5 @@ tokio-tungstenite = { version = "0.23.1", features = [
 url = "2.5.2"
 wakey = "0.3.0"
 wol-rs = "1.0.1"
+zbus = "4.4.0"
+zbus_systemd = { version = "0.25600.0", features = ["login1"] }
