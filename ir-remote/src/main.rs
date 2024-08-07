@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, thread, time::Duration};
 
 use embedded_hal::pwm::SetDutyCycle;
 use esp_idf_hal::gpio::PinDriver;
@@ -7,6 +7,7 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::task::block_on;
 use esp_idf_sys::vTaskDelay;
+use esp_println::println;
 use ir_remote::ir_signal::IrSignal;
 use log::info;
 use postcard::{take_from_bytes, Error};
@@ -33,12 +34,20 @@ async fn main_async() -> anyhow::Result<()> {
     let mut internal_led = PinDriver::input_output(peripherals.pins.gpio8)?;
     internal_led.set_high()?;
 
-    channel.disable()?;
     channel.set_duty_cycle_fraction(1, 2)?;
+    // Note: This must be called *after* set_duty_cycle_fraction
+    channel.disable()?;
 
     let mut handle = std::io::stdin().lock();
     let mut buffer = [Default::default(); 1024];
     let mut data_len = Default::default();
+
+    for _ in 0..10 {
+        internal_led.set_low()?;
+        thread::sleep(Duration::from_millis(100));
+        internal_led.set_high()?;
+        thread::sleep(Duration::from_millis(100));
+    }
 
     loop {
         let signal = {
@@ -46,11 +55,13 @@ async fn main_async() -> anyhow::Result<()> {
                 match handle.read(&mut buffer[data_len..]) {
                     Ok(len) => match take_from_bytes::<IrSignal>(&buffer[..data_len + len]) {
                         Ok((signal, leftover)) => {
-                            break Ok((signal, leftover.len()));
+                            break (signal, leftover.len());
                         }
                         Err(e) => match e {
                             Error::DeserializeUnexpectedEnd => {}
-                            _ => break Err(e),
+                            _ => {
+                                data_len = 0;
+                            }
                         },
                     },
                     Err(e) => match e.kind() {
@@ -67,7 +78,8 @@ async fn main_async() -> anyhow::Result<()> {
                         }
                     },
                 }
-            }?;
+            };
+            println!("Leftover len: {:?}", leftover_len);
             buffer.copy_within(data_len - leftover_len..data_len, 0);
             data_len = leftover_len;
             Ok::<_, anyhow::Error>(signal)
