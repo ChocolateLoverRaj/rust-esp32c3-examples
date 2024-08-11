@@ -1,14 +1,18 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE},
     Engine as _,
 };
+use chrono::Local;
 use futures_util::{SinkExt, StreamExt};
 use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_tungstenite::{connect_async_tls_with_config, tungstenite::Message, Connector};
+use try_again::{retry_async, TokioSleep};
 use url::Url;
+
+use crate::retry_strategy::RETRY_STRATEGY;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct App {
@@ -32,28 +36,35 @@ impl Samsung {
         request: &Req,
         event: &str,
     ) -> anyhow::Result<Value> {
-        let (mut ws, _) = connect_async_tls_with_config(
-            {
-                let ip = &self.ip;
-                let mut url = Url::parse(&format!(
-                    "wss://{ip}:8002//api/v2/channels/samsung.remote.control"
-                ))?;
-                url.query_pairs_mut()
-                    .append_pair("name", &URL_SAFE.encode(&self.app_name));
-                if let Some(token) = self.token.as_ref() {
-                    url.query_pairs_mut().append_pair("token", token);
-                }
-                url.to_string()
-            },
-            None,
-            false,
-            Some(Connector::NativeTls(
-                TlsConnector::builder()
-                    .danger_accept_invalid_certs(true)
-                    .build()?,
-            )),
-        )
-        .await?;
+        let (mut ws, _) = retry_async(RETRY_STRATEGY, TokioSleep {}, move || async move {
+            println!("Attempting to connect... {:?}", Local::now());
+            Ok::<_, anyhow::Error>(
+                connect_async_tls_with_config(
+                    {
+                        let ip = &self.ip;
+                        let mut url = Url::parse(&format!(
+                            "wss://{ip}:8002//api/v2/channels/samsung.remote.control"
+                        ))?;
+                        url.query_pairs_mut()
+                            .append_pair("name", &URL_SAFE.encode(&self.app_name));
+                        if let Some(token) = self.token.as_ref() {
+                            url.query_pairs_mut().append_pair("token", token);
+                        }
+                        url.to_string()
+                    },
+                    None,
+                    false,
+                    Some(Connector::NativeTls(
+                        TlsConnector::builder()
+                            .danger_accept_invalid_certs(true)
+                            .build()?,
+                    )),
+                )
+                .await?,
+            )
+        })
+        .await
+        .context(anyhow!("Error connecting WebSocket"))?;
         ws.send(Message::Text(serde_json::to_string(request)?))
             .await?;
         Ok(loop {

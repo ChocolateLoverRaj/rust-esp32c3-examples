@@ -1,31 +1,31 @@
 use anyhow::Context;
 use chrono::Local;
 use smart_power_button_computer::{
-    sound_system::SoundSystem, systemd_integration::ExternalDeviceManager,
+    power_down::power_down, power_up::power_up, systemd_integration::ExternalDeviceManager,
 };
+use zbus::Connection;
+use zbus_systemd::systemd1::ManagerProxy;
 
 struct Service {}
 
 impl ExternalDeviceManager for Service {
     async fn turn_on(&mut self) -> anyhow::Result<()> {
         println!("Turning on,  {:?}", Local::now());
-        SoundSystem::open()
-            .await?
-            .turn_on()
-            .await
-            .context("Error turning on sound system")?;
-        println!("Turned on,   {:?}", Local::now());
+        power_up().await.context("Error turning on TV")?;
+        println!("Turned on,  {:?}", Local::now());
         Ok(())
     }
     async fn turn_off(&mut self) -> anyhow::Result<()> {
         println!("Turning off, {:?}", Local::now());
-        SoundSystem::open()
-            .await?
-            .turn_off()
+        let connection = Connection::system().await?;
+        let manager = ManagerProxy::new(&connection).await?;
+        manager
+            .restart_unit("NetworkManager.service".into(), "replace".into())
             .await
-            .context("Error turning off sound system")?;
+            .context("Error restarting NetworkManager")?;
+        power_down().await.context("Error turning off TV")?;
+        // sleep(Duration::from_secs(50)).await;
         println!("Turned off,  {:?}", Local::now());
-        // sleep(Duration::from_secs(2)).await;
         Ok(())
     }
 }

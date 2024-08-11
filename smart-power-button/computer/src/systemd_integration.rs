@@ -1,11 +1,9 @@
-use std::time::Duration;
-
 use anyhow::anyhow;
 use futures_util::{
     future::{select, Either},
     FutureExt, StreamExt,
 };
-use tokio::{signal::ctrl_c, time::sleep, try_join};
+use tokio::{signal::ctrl_c, try_join};
 use zbus::Connection;
 use zbus_systemd::login1::ManagerProxy;
 
@@ -39,7 +37,8 @@ pub trait ExternalDeviceManager {
                                 true
                             );
                             match select(Box::pin(self.turn_off()), ctrl_c_future.clone()).await {
-                                Either::Left(_) => {
+                                Either::Left((result, _)) => {
+                                    result?;
                                     _fd = None;
                                     let prepare_for_sleep =
                                         signal_stream.next().await.ok_or(anyhow!("No data"))?;

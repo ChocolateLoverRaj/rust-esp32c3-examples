@@ -24,8 +24,9 @@ tokio-tungstenite = { version = "0.23.1", features = [
     "native-tls",
     "tokio-rustls",
 ] }
+try-again = "0.1.1"
 url = "2.5.2"
 wakey = "0.3.0"
 wol-rs = "1.0.1"
 zbus = "4.4.0"
-zbus_systemd = { version = "0.25600.0", features = ["login1"] }
+zbus_systemd = { version = "0.25600.0", features = ["login1", "systemd1"] }
