@@ -1,6 +1,6 @@
 use crate::apps::NETFLIX;
 
-pub const SHOULD_CONTROL_SOUND_SYSTEM: bool = false;
+pub const SHOULD_CONTROL_SOUND_SYSTEM: bool = true;
 pub const SHOULD_CONTROL_TV: bool = true;
 /// The device display name for HDMI1
 pub const DEVICE_NAME: &str = "Gaming Computer";

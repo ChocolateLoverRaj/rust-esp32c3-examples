@@ -1,0 +1,3 @@
+[workspace]
+members = ["common", "computer"]
+resolver = "2"
