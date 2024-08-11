@@ -30,6 +30,11 @@ Flashing all the web assets to the ESP takes a long time and wears down the flas
 ### Running ESP in release mode to reduce size
 Running the `esp` code in with `--release` reduces size, which saves time.
 
+## Flashing Code for Normal Use
+- Configure the `.env` files. See [#developing](#developing).
+- Run `trunk serve --release` in `web`
+- Run `cargo r --release` in `esp`
+
 ## Wiring Diagram
 ![Fritzing Bread Board](./Sketch_bb.svg)
 
