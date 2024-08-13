@@ -14,17 +14,16 @@ use crate::{
 };
 use anyhow::Context;
 use smart_power_button_common::WakeupReason;
-use tokio::{join, time::sleep};
+use tokio::{time::sleep, try_join};
 use try_again::{retry_async, TokioSleep};
 use wakey::WolPacket;
 
 pub async fn power_up() -> anyhow::Result<()> {
     let tv_data_future = get_tv_data();
     let wakeup_reason_future = retry_async(RETRY_STRATEGY, TokioSleep {}, get_wakeup_reason);
-    let (tv_data, wakeup_reason) = join!(tv_data_future, wakeup_reason_future);
-    let mut tv_data = tv_data?.unwrap_or_default();
+    let (tv_data, mut wakeup_reason) = try_join!(tv_data_future, wakeup_reason_future)?;
+    let mut tv_data = tv_data.unwrap_or_default();
     println!("Read TV Data: {:#?}", tv_data);
-    let mut wakeup_reason = wakeup_reason?;
     println!("Wakeup reason: {wakeup_reason:?}");
     if IGNORE_TV_POWER_STATE {
         wakeup_reason = Some(WakeupReason::Web(true));
@@ -149,11 +148,7 @@ pub async fn power_up() -> anyhow::Result<()> {
             }
             Ok::<_, anyhow::Error>(())
         };
-        {
-            let (r1, r2) = join!(sound_system_future, tv_future);
-            r1?;
-            r2?;
-        }
+        try_join!(sound_system_future, tv_future)?;
 
         tv_data.is_on = true;
         println!("Saving TV Data: {:#?}", tv_data);
