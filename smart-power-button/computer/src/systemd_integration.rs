@@ -7,9 +7,15 @@ use tokio::{signal::ctrl_c, try_join};
 use zbus::Connection;
 use zbus_systemd::login1::ManagerProxy;
 
+#[derive(Debug, Clone, Copy)]
+pub enum OffReason {
+    Suspend,
+    Exit,
+}
+
 pub trait ExternalDeviceManager {
     async fn turn_on(&mut self) -> anyhow::Result<()>;
-    async fn turn_off(&mut self) -> anyhow::Result<()>;
+    async fn turn_off(&mut self, reason: OffReason) -> anyhow::Result<()>;
     async fn zbus_integration(&mut self) -> anyhow::Result<()> {
         let connection = Connection::system().await?;
         let manager = ManagerProxy::new(&connection).await?;
@@ -32,17 +38,25 @@ pub trait ExternalDeviceManager {
                     self.turn_on().await?;
                     match select(Box::pin(signal_stream.next()), ctrl_c_future.clone()).await {
                         Either::Left((prepare_for_sleep, _ctrl_c_future)) => {
-                            assert_eq!(
+                            assert!(
                                 prepare_for_sleep.ok_or(anyhow!("No data"))?.args()?.start,
-                                true
+                                "Expected true prepare_for_sleep signal"
                             );
-                            match select(Box::pin(self.turn_off()), ctrl_c_future.clone()).await {
+                            match select(
+                                Box::pin(self.turn_off(OffReason::Suspend)),
+                                ctrl_c_future.clone(),
+                            )
+                            .await
+                            {
                                 Either::Left((result, _)) => {
                                     result?;
                                     _fd = None;
                                     let prepare_for_sleep =
                                         signal_stream.next().await.ok_or(anyhow!("No data"))?;
-                                    assert_eq!(prepare_for_sleep.args()?.start, false);
+                                    assert!(
+                                        !prepare_for_sleep.args()?.start,
+                                        "Expected false prepare_for_sleep signal"
+                                    );
                                     _fd = Some(get_fd().await?);
                                 }
                                 Either::Right((_, turn_off_future)) => {
@@ -53,7 +67,7 @@ pub trait ExternalDeviceManager {
                             }
                         }
                         Either::Right(_) => {
-                            self.turn_off().await?;
+                            self.turn_off(OffReason::Exit).await?;
                             _fd = None;
                             break;
                         }
