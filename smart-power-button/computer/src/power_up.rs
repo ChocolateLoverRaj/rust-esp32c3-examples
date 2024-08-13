@@ -67,42 +67,42 @@ pub async fn power_up() -> anyhow::Result<()> {
                 // Move all the way left
                 for _ in 0..11 {
                     remote.send_key("KEY_LEFT").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                 }
                 if SHOULD_SWITCH_SOUND_OUTPUT {
                     // Switch the sound output from TV to Sound System
                     remote.send_key("KEY_UP").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                     remote.send_key("KEY_RIGHT").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                     remote.send_key("KEY_RIGHT").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                     remote.send_key("KEY_ENTER").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                     // Go back to home settings
                     remote.send_key("KEY_DOWN").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                 }
 
                 // Go to source settings
                 remote.send_key("KEY_RIGHT").await?;
-                sleep(Duration::from_secs_f64(0.15)).await;
+                sleep(Duration::from_secs_f64(0.30)).await;
                 remote.send_key("KEY_UP").await?;
-                sleep(Duration::from_secs_f64(0.15)).await;
+                sleep(Duration::from_secs_f64(0.30)).await;
                 // Move all the way to the left
                 for _ in 0..5 {
                     remote.send_key("KEY_LEFT").await?;
-                    sleep(Duration::from_secs_f64(0.15)).await;
+                    sleep(Duration::from_secs_f64(0.30)).await;
                 }
                 // Switch to HDMI1, and change it to be "Game Console" type
                 // Select HDMI1
                 remote.send_key("KEY_RIGHT").await?;
-                sleep(Duration::from_secs_f64(0.15)).await;
+                sleep(Duration::from_secs_f64(0.30)).await;
                 // Go up to "Choose type"
                 remote.send_key("KEY_UP").await?;
-                sleep(Duration::from_secs_f64(0.15)).await;
+                sleep(Duration::from_secs_f64(0.30)).await;
                 remote.send_key("KEY_UP").await?;
-                sleep(Duration::from_secs_f64(0.15)).await;
+                sleep(Duration::from_secs_f64(0.30)).await;
                 remote.send_key("KEY_ENTER").await?;
                 sleep(Duration::from_secs_f64(1.5)).await;
                 // Go all the way up in case it's already set to "Game Console"
