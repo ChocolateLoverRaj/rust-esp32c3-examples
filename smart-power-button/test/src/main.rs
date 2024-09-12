@@ -4,25 +4,29 @@ use postcard::{from_bytes, to_allocvec};
 use reqwest::{Client, Method};
 use smart_power_button_common::WakeupReason;
 
-const ADDRESS: &str = "192.168.1.253";
+const ADDRESS: &str = "gaming-computer-remote";
 
 async fn set_bluetooth_wakeup_devices() {
-    let ids = ["C8:3F:26:8D:4D:00", "5C:BA:37:1D:74:5C"]
-        .iter()
-        .map(|id| {
-            let id: [_; 6] = {
-                let mut bytes = id
-                    .split(":")
-                    .map(|hex| u8::from_str_radix(hex, 16).unwrap())
-                    .collect::<Vec<_>>();
-                bytes.reverse();
-                bytes
-            }
-            .try_into()
-            .unwrap();
-            id
-        })
-        .collect::<Vec<_>>();
+    let ids = [
+        "C8:3F:26:8D:4D:00",
+        "5C:BA:37:1D:74:5C",
+        "28:EA:0B:D7:85:1D",
+    ]
+    .iter()
+    .map(|id| {
+        let id: [_; 6] = {
+            let mut bytes = id
+                .split(":")
+                .map(|hex| u8::from_str_radix(hex, 16).unwrap())
+                .collect::<Vec<_>>();
+            bytes.reverse();
+            bytes
+        }
+        .try_into()
+        .unwrap();
+        id
+    })
+    .collect::<Vec<_>>();
     Client::new()
         .put(format!("http://{ADDRESS}/bluetooth_wakeup_devices"))
         .body(to_allocvec(&ids).unwrap())
@@ -82,7 +86,7 @@ async fn get_wakeup_reason(delete: bool) {
 
 #[tokio::main]
 async fn main() {
-    // set_bluetooth_wakeup_devices().await;
+    set_bluetooth_wakeup_devices().await;
     get_bluetooth_wakeup_devices().await;
     get_wakeup_reason(true).await;
 }

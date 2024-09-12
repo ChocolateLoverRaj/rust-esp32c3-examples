@@ -1,4 +1,4 @@
 [workspace]
-members = ["common", "computer"]
+members = ["common", "computer", "test"]
 exclude = ["esp", "web"]
 resolver = "2"
