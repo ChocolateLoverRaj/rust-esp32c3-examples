@@ -1,0 +1,43 @@
+[package]
+name = "esp32-max7219"
+version = "0.1.0"
+authors = [
+  "Rajas Paranjpe <52586855+ChocolateLoverRaj@users.noreply.github.com>",
+]
+edition = "2021"
+resolver = "2"
+rust-version = "1.71"
+
+[profile.release]
+opt-level = "s"
+
+[profile.dev]
+debug = true    # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[features]
+default = ["std", "embassy", "esp-idf-svc/native"]
+
+pio = ["esp-idf-svc/pio"]
+std = ["alloc", "esp-idf-svc/binstart", "esp-idf-svc/std"]
+alloc = ["esp-idf-svc/alloc"]
+nightly = ["esp-idf-svc/nightly"]
+experimental = ["esp-idf-svc/experimental"]
+embassy = [
+  "esp-idf-svc/embassy-sync",
+  "esp-idf-svc/critical-section",
+  "esp-idf-svc/embassy-time-driver",
+]
+
+[dependencies]
+log = { version = "0.4", default-features = false }
+esp-idf-svc = { version = "0.49.1", default-features = false }
+esp-idf-sys = { version = "0.35.0", features = ["binstart"] }
+esp-idf-hal = "0.44.1"
+esp-println = { version = "0.12.0", features = ["esp32c3"] }
+libc = "0.2.152"
+max7219 = "0.4.2"
+anyhow = "1.0.89"
+
+[build-dependencies]
+embuild = "0.32.0"
