@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ESP32-C3_SUPERMINI")(type "KiCad")(uri "${KIPRJMOD}/KiCad Assets/ESP32-C3_SUPERMINI.kicad_sym")(options "")(descr ""))
+  (lib (name "20-pin ATX")(type "KiCad")(uri "${KIPRJMOD}/KiCad Assets/2024-10-11_01-11-34.kicad_sym")(options "")(descr ""))
+)
