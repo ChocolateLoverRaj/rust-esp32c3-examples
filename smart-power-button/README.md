@@ -38,7 +38,7 @@ Running the `esp` code in with `--release` reduces size, which saves time.
 ## Wiring Diagram
 ![Fritzing Bread Board](./Sketch_bb.svg)
 
-## Pictures
+## Pictures of Breadboard
 ![Photo 0](./Photo%200.webp)
 ![Photo 1](./Photo%201.webp)
 ![Photo 2](./Photo%202.webp)
@@ -46,6 +46,34 @@ Running the `esp` code in with `--release` reduces size, which saves time.
 ![Photo 4](./Photo%204.webp)
 ![Photo 5](./Photo%205.webp)
 In my setup, I used an ATX power splitter so that I could access the 5VSB and GND pins to always power the ESP32-C3, even when the computer is off.
+
+# PCB
+To make the circuit compact and easier to use, I designed a PCB. I ordered the PCB with assembly on PCBWay, which sponsored the PCB prototyping for this project. As seen in the pictures, the quality of the PCB is great. The silkscreen is very clear including the QR Code in the bottom. The only issue is that some of the components were not perfectly aligned. I was stil able to plug in everything I needed to though. You can also order PCBs and PCBs with assembly for your own projects with [PCBWay](https://www.pcbway.com/).
+![PCB In Antistatic Bag](./PCB%20In%20Antistatic%20Bag.jpg)
+![PCB Top](./PCB%20Top.jpg)
+![PCB Bottom](./PCB%20Bottom.jpg)
+
+I made a few mistakes in the PCB design:
+- I used GPIO2, which is a special GPIO pin, which did not work as an input. To fix this, I cut off the connection to GPIO2 and soldered the trace to GPIO0 instead.
+- The optocopulers for detecting the power and HDD LEDs assume that a 330Ω resistor is connected. This is okay if you get the wiring right, but while I was testing the PCB I accidentally destroyed 2 optocouplers (probably by connecting them to a 5V source without a resistor for a brief moment).
+- The LEDs on the PCB and the extra external LEDs were supposed to work even when a ESP32-C3 Super-Mini was not attached, but it doesn't, since it needs a 3.3V source to work, which is only provided by the ESP32-C3 Super-Mini.
+- I used resistors which will send 20mA (the maximum current) through the LEDs on the PCB, but this is ***way* too bright**! My PC is in my bedroom, and I had to disconnect it to fall asleep.
+![PCB Modification Top](./PCB%20Modification%20Top.jpg)
+![PCB Bottom](./PCB%20Modification%20Bottom.jpg)
+Here is the PCB in action:
+![PCB In Action](./PCB%20In%20Action.jpg)
+
+[Here is the link to the original PCB just for reference](https://easyeda.com/editor#project_id=c5dba1f1b9a34bec985b2a5e179ea9b3) (it has the mistakes). I designed it on EasyEDA.
+
+# Redesigned PCB
+After I learned from my mistakes with the original design, I realized a few things:
+- Always test the circuit as close as possible as you can test to the actual PCB before ordering the PCB
+- The buttons and LEDs on the PCB are unnecessary
+- The OLED display is unnecessary
+- I do not need to order PCB assembly, I an use through hole components, order a PCB, and solder it myself.
+- I should use KiCad instead of EasyEDA.
+
+So I designed a new PCB with KiCad. It is located in the "KiCad PCB" folder. **I have not tested it yet.**
 
 ## Materials Needed
 (In addition to a ESP32-C3)
