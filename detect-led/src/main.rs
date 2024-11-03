@@ -1,11 +1,10 @@
 use std::{thread, time::Duration};
 
 use esp_idf_hal::{
-    gpio::{InterruptType, PinDriver, Pull},
+    gpio::{PinDriver, Pull},
     peripherals::Peripherals,
     task::block_on,
 };
-use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 
 fn main() {
@@ -24,7 +23,7 @@ async fn main_async() {
     if pin.is_low() {
         println!("LED is connected. Will blink");
         let mut pin = pin.into_output().unwrap();
-        pin.set_high();
+        pin.set_high().unwrap();
         loop {
             thread::sleep(Duration::from_millis(375));
             pin.toggle().unwrap();

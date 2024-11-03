@@ -1,19 +1,9 @@
-use std::{
-    thread::{self, sleep},
-    time::Duration,
-};
-
 use esp_idf_hal::{
-    gpio::{DriveStrength, Gpio0, InterruptType, PinDriver, Pull},
+    gpio::Gpio0,
     peripherals::Peripherals,
-    spi::{
-        config::{Duplex, MODE_0},
-        Dma, SpiConfig, SpiDeviceDriver, SpiDriver,
-    },
-    task::block_on,
+    spi::{config::MODE_0, SpiConfig, SpiDeviceDriver, SpiDriver},
     units::FromValueType,
 };
-use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_sys as _;
 use max7219::MAX7219;
 
