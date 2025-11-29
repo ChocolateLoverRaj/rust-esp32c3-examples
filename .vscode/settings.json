@@ -9,5 +9,6 @@
     "oneshot",
     "Pico",
     "println"
-  ]
+  ],
+  "workbench.colorTheme": "rustdoc dark"
 }
