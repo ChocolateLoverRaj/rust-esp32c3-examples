@@ -1,10 +1,8 @@
 #![no_std]
 #![no_main]
 
-use core::{mem, ops::DerefMut};
-
 use embassy_executor::Spawner;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use esp_backtrace as _;
 use esp_hal::{
     gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
@@ -13,7 +11,7 @@ use esp_hal::{
     usb_serial_jtag::UsbSerialJtag,
 };
 use esp_println as _;
-use futures::future::join3;
+use futures::future::join;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -28,24 +26,25 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
-    defmt::info!("Press t to toggle LED!");
+    defmt::info!(
+        "Push the button, or press t to toggle LED, or press y/n to turn the LED on or off!"
+    );
 
-    let mut led = Output::new(peripherals.GPIO8, Level::Low, OutputConfig::default());
+    let led = Mutex::<CriticalSectionRawMutex, _>::new(Output::new(
+        peripherals.GPIO8,
+        Level::Low,
+        OutputConfig::default(),
+    ));
     let mut button = Input::new(
         peripherals.GPIO9,
         InputConfig::default().with_pull(Pull::Down),
     );
 
-    // We would use an AtomicUsize but it's not letting us do atomic swap
-    let toggle_count = Mutex::<CriticalSectionRawMutex, _>::new(0_usize);
-    let toggle_signal = Signal::<CriticalSectionRawMutex, ()>::new();
-
-    join3(
+    join(
         async {
             loop {
                 button.wait_for_falling_edge().await;
-                *toggle_count.lock().await += 1;
-                toggle_signal.signal(());
+                led.lock().await.toggle();
             }
         },
         async {
@@ -56,21 +55,11 @@ async fn main(spawner: Spawner) {
                     .await
                     .unwrap();
                 let input = buffer[..len][0];
-                if input == b't' {
-                    *toggle_count.lock().await += 1;
-                    toggle_signal.signal(());
-                }
-            }
-        },
-        async {
-            loop {
-                toggle_signal.wait().await;
-                let toggles = mem::take(toggle_count.lock().await.deref_mut());
-                defmt::debug!("Processed {} toggles", toggles);
-                if !toggles.is_multiple_of(2) {
-                    let level = led.output_level();
-                    let new_level = !level;
-                    led.set_level(new_level);
+                match input {
+                    b't' => led.lock().await.toggle(),
+                    b'y' => led.lock().await.set_low(),
+                    b'n' => led.lock().await.set_high(),
+                    _ => {}
                 }
             }
         },

@@ -21,7 +21,7 @@ esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["embassy"] }
-futures = { version = "0.3.31", default-features = false }
+futures = { version = "0.3.31", default-features = false, features = ["async-await"] }
 
 [features]
 default = ["esp32c3"]
