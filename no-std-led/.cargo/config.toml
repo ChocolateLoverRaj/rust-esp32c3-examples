@@ -4,7 +4,7 @@ rustflags = [
   # Needed for esp-hal to work
   "-C", "link-arg=-Tlinkall.x",
   # Needed for defmt to work
-  # "-C", "link-arg=-Tdefmt.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [env]
