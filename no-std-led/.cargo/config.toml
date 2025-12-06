@@ -1,0 +1,23 @@
+[target.riscv32imc-unknown-none-elf]
+runner = "espflash flash --monitor"
+rustflags = [
+  # Needed for esp-hal to work
+  "-C", "link-arg=-Tlinkall.x",
+  # Needed for defmt to work
+  # "-C", "link-arg=-Tdefmt.x",
+]
+
+[env]
+DEFMT_LOG="debug"
+
+[build]
+rustflags = [
+  # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
+  # NOTE: May negatively impact performance of produced code
+  "-C", "force-frame-pointers",
+]
+
+target = "riscv32imc-unknown-none-elf"
+
+[unstable]
+build-std = ["alloc", "core"]

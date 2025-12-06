@@ -1,0 +1,23 @@
+[package]
+name = "no-std-led"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "no-std-led"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+embassy-executor = "0.9.1"
+esp-backtrace = { version = "0.18.1", features = ["panic-handler", "println"] }
+esp-bootloader-esp-idf = "0.4.0"
+esp-hal = { version = "1.0.0", features = ["unstable"] }
+esp-println = "0.16.1"
+esp-rtos = { version = "0.2.0", features = ["embassy"] }
+
+[features]
+default = ["esp32c3"]
+esp32c3 = ["esp-hal/esp32c3", "esp-rtos/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-bootloader-esp-idf/esp32c3"]
