@@ -37,7 +37,7 @@ async fn main(spawner: Spawner) {
             .with_mode(Mode::_0),
     )
     .unwrap()
-    .with_mosi(peripherals.GPIO0)
+    .with_mosi(peripherals.GPIO2)
     .into_async();
 
     // From the example at https://github.com/kalkyl/ws2812-async
@@ -46,7 +46,7 @@ async fn main(spawner: Spawner) {
     /// Change this to what order your specific LEDs have
     /// Here it says GRB: https://cdn-shop.adafruit.com/datasheets/WS2812.pdf
     type C = Grb;
-    let mut ws = Ws2812::<_, C, { 12 * NUM_LEDS }>::new(spi);
+    let mut ws = Ws2812::<_, C, NUM_LEDS>::new(spi);
 
     let mut data = [RGB8::default(); NUM_LEDS];
 
