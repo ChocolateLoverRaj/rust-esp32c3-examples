@@ -2,8 +2,9 @@
 #![no_main]
 
 use embassy_executor::Spawner;
+use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::ExclusiveDevice;
-use embedded_sdmmc::{SdCard, TimeSource, Timestamp, VolumeIdx, VolumeManager};
+use embedded_sdmmc::{SdCard, SdCardError, sdcard::AcquireOpts};
 use esp_backtrace as _;
 use esp_hal::{
     delay::Delay,
@@ -14,6 +15,7 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println::{self as _, println};
+use humansize::{BINARY, SizeFormatter};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -28,7 +30,7 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
-    let sd_card = SdCard::new(
+    let sd_card = SdCard::new_with_options(
         ExclusiveDevice::new(
             Spi::new(
                 peripherals.SPI2,
@@ -43,35 +45,40 @@ async fn main(spawner: Spawner) {
         )
         .unwrap(),
         Delay::new(),
+        AcquireOpts {
+            acquire_retries: 1,
+            ..Default::default()
+        },
     );
 
-    // Get the card size (this also triggers card initialisation because it's not been done yet)
-    println!("Card size is {} bytes", sd_card.num_bytes().unwrap());
-    // Now let's look for volumes (also known as partitions) on our block device.
-    // To do this we need a Volume Manager. It will take ownership of the block device.
-    let volume_mgr = VolumeManager::new(sd_card, {
-        struct ZeroTimeSource;
-        impl TimeSource for ZeroTimeSource {
-            fn get_timestamp(&self) -> embedded_sdmmc::Timestamp {
-                Timestamp {
-                    year_since_1970: 0,
-                    zero_indexed_month: 0,
-                    zero_indexed_day: 0,
-                    hours: 0,
-                    minutes: 0,
-                    seconds: 0,
+    let mut prev_card_present = None;
+    loop {
+        let card_num_bytes = match sd_card.num_bytes() {
+            Ok(num_bytes) => Ok(Some(num_bytes)),
+            Err(e) => match e {
+                SdCardError::CardNotFound => Ok(None),
+                e => Err(e),
+            },
+        };
+        match card_num_bytes {
+            Ok(num_bytes) => {
+                let card_present = Some(num_bytes.is_some());
+                if card_present != prev_card_present {
+                    match num_bytes {
+                        Some(num_bytes) => {
+                            let size = SizeFormatter::new(num_bytes, BINARY);
+                            println!("Card detected with size {size}");
+                            sd_card.mark_card_uninit();
+                        }
+                        None => {
+                            println!("No card prsent");
+                        }
+                    }
+                    prev_card_present = card_present;
                 }
             }
+            Err(e) => println!("Err: {e:#?}"),
         }
-        ZeroTimeSource
-    });
-    // Try and access Volume 0 (i.e. the first partition).
-    // The volume object holds information about the filesystem on that volume.
-    let volume0 = volume_mgr.open_volume(VolumeIdx(0)).unwrap();
-    println!("Volume 0: {:?}", volume0);
-    // Open the root directory (mutably borrows from the volume).
-    let root_dir = volume0.open_root_dir().unwrap();
-    root_dir
-        .iterate_dir(|dir_entry| println!("Dir entry: {dir_entry:#?}"))
-        .unwrap();
+        Timer::after(Duration::from_secs(2)).await;
+    }
 }
