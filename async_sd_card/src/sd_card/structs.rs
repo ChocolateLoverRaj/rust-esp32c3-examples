@@ -124,3 +124,11 @@ bitflags! {
         const HCS = 1 << 30;
     }
 }
+
+bitfield! {
+    pub struct DataResponseToken(u8);
+
+    bool; pub get_bit_4, set_bit_4: 4;
+    u8; pub get_status, set_status: 3, 1;
+    bool; pub get_bit_0, set_bit_0: 0;
+}

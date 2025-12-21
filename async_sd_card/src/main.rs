@@ -23,8 +23,8 @@ use esp_hal::{
 use esp_println::{self as _, println};
 
 use crate::sd_card::{
-    Command58Error, Ocr, R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, command_55,
-    command_58, command_a41, format_command, format_command_0, format_command_8,
+    Command58Error, Ocr, R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, command_9,
+    command_55, command_58, command_a41, format_command, format_command_0, format_command_8,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -116,4 +116,11 @@ async fn main(spawner: Spawner) {
     } else {
         info!("Card is standard capacity")
     }
+
+    // Simulate talking to a different SPI device
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+    info!("CMD9");
+    let csd = command_9(&mut spi_bus, &mut cs).await.unwrap();
+    info!("CSD: {:02X}", csd);
 }

@@ -2,8 +2,9 @@ mod structs;
 
 use bitfield::bitfield;
 use bitflags::bitflags;
-use crc::{CRC_7_MMC, Crc};
+use crc::{CRC_7_MMC, CRC_16_XMODEM, Crc};
 use defmt::{error, info};
+use embassy_time::Timer;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::spi::SpiBus;
 pub use structs::*;
@@ -383,4 +384,90 @@ pub async fn command_a41<Bus: SpiBus, Cs: OutputPin>(
         .map_err(SpiError::Bus)
         .map_err(CommandA41Error::Spi)?;
     Ok(is_idle)
+}
+
+#[derive(Debug)]
+pub enum Command9Error<BusError, CsError> {
+    Spi(SpiError<BusError, CsError>),
+    R1Error(R1),
+    InvalidChecksum,
+}
+pub async fn command_9<Bus: SpiBus, Cs: OutputPin>(
+    spi_bus: &mut Bus,
+    cs: &mut Cs,
+) -> Result<[u8; 16], Command9Error<Bus::Error, Cs::Error>> {
+    cs.set_low()
+        .map_err(SpiError::Cs)
+        .map_err(Command9Error::Spi)?;
+    spi_bus
+        .write(&format_command(9, 0))
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command9Error::Spi)?;
+    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
+    loop {
+        // Timer::after(Duration::from_millis(1000)).await;
+        let mut buffer = [0xFF; 1];
+        spi_bus
+            .transfer_in_place(&mut buffer)
+            .await
+            .map_err(SpiError::Bus)
+            .map_err(Command9Error::Spi)?;
+        let r1 = R1::from_bits_retain(buffer[0]);
+        if !r1.contains(R1::BIT_7) {
+            if r1.is_empty() {
+                break;
+            } else {
+                error!("R1: 0b{:08b}", r1.bits());
+                cs.set_high()
+                    .map_err(SpiError::Cs)
+                    .map_err(Command9Error::Spi)?;
+                spi_bus
+                    .write(&[0xFF])
+                    .await
+                    .map_err(SpiError::Bus)
+                    .map_err(Command9Error::Spi)?;
+                return Err(Command9Error::R1Error(r1));
+            }
+        } else {
+            // TODO: Timeout
+        }
+    }
+    // TODO: Are we allowed to talk to other SPI devices during this time?
+    loop {
+        let mut buffer = [0xFF; 1];
+        spi_bus
+            .transfer_in_place(&mut buffer)
+            .await
+            .map_err(SpiError::Bus)
+            .map_err(Command9Error::Spi)?;
+        let byte = buffer[0];
+        if byte != 0xFF {
+            break;
+        } else {
+            // TODO: Timeout
+        }
+    }
+    let mut buffer = [0xFF; 18];
+    spi_bus
+        .transfer_in_place(&mut buffer)
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command9Error::Spi)?;
+    cs.set_high()
+        .map_err(SpiError::Cs)
+        .map_err(Command9Error::Spi)?;
+    spi_bus
+        .write(&[0xFF])
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command9Error::Spi)?;
+
+    let (csd, crc) = buffer.split_at(16);
+    let csd = <&[u8; 16]>::try_from(csd).unwrap();
+    let crc = u16::from_be_bytes(*<&[u8; 2]>::try_from(crc).unwrap());
+    if crc != Crc::<u16>::new(&CRC_16_XMODEM).checksum(csd) {
+        return Err(Command9Error::InvalidChecksum);
+    }
+    Ok(*csd)
 }
