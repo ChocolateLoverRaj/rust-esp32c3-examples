@@ -15,7 +15,7 @@ use esp_hal::{
 };
 use esp_println as _;
 use spi_sd_card::{
-    CsdV2, command_0, command_8, command_9, command_55, command_58, command_59, command_a41,
+    Cid, CsdV2, command_0, command_8, command_9, command_55, command_58, command_59, command_a41,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -135,6 +135,23 @@ async fn main(spawner: Spawner) {
             let csd = CsdV2(command_9(&mut spi_bus, &mut cs).await.unwrap());
             let capacity = csd.card_capacity_bytes();
             info!("Capacity: {}", capacity);
+
+            info!("CMD10");
+            let cid = Cid(command_9(&mut spi_bus, &mut cs).await.unwrap());
+            info!("Manufacturer ID: 0x{:02X}", cid.get_mid());
+            info!("OEM/Application ID: 0x{:04X}", cid.get_mid());
+            let product_name = cid.get_pnm();
+            match str::from_utf8(&product_name.to_be_bytes()) {
+                Ok(product_name) => {
+                    info!("Product name: {}", product_name);
+                }
+                Err(_) => {
+                    info!("Product name: 0x{:010X} (invalid UTF-8)", product_name)
+                }
+            }
+            info!("Product Revision: 0x{:02X}", cid.get_prv());
+            info!("Product serial number: 0x{:08X}", cid.get_psn());
+            info!("Manufacturing year: {}", cid.get_mdt().year());
         }
         Err(spi_sd_card::Error::VoltageNotSupported) => {
             error!("Voltage (2.7V-3.6V) not supported");
