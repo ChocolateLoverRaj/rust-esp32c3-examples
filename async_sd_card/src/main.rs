@@ -67,7 +67,7 @@ async fn main(spawner: Spawner) {
     command_0(&mut spi_bus, &mut cs).await.unwrap();
 
     // Simulate talking to a different SPI device
-    // SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
 
     info!("sending CMD8");
     // The check pattern can be anything we want

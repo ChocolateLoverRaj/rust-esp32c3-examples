@@ -65,27 +65,21 @@ pub enum Command0Error<BusError, CsError> {
 pub async fn card_command<Bus: SpiBus, Cs: OutputPin>(
     spi_bus: &mut Bus,
     command: &[u8; 6],
-) -> Result<R1, SpiError<Bus::Error, Cs::Error>> {
+) -> Result<R1, Bus::Error> {
     // Wait until it returns 0xFF
     loop {
         let mut buffer = [0xFF; 1];
-        spi_bus
-            .transfer_in_place(&mut buffer)
-            .await
-            .map_err(SpiError::Bus)?;
+        spi_bus.transfer_in_place(&mut buffer).await?;
         if buffer[0] == 0xFF {
             break;
         } else {
             warn!("was not 0xFF");
         }
     }
-    spi_bus.write(command).await.map_err(SpiError::Bus)?;
+    spi_bus.write(command).await?;
     let r1 = loop {
         let mut buffer = [0xFF; 1];
-        spi_bus
-            .transfer_in_place(&mut buffer)
-            .await
-            .map_err(SpiError::Bus)?;
+        spi_bus.transfer_in_place(&mut buffer).await?;
         let r1 = R1::from_bits_retain(buffer[0]);
         if !r1.contains(R1::BIT_7) {
             break r1;
@@ -107,7 +101,7 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
     loop {
         let r1 = card_command::<_, Cs>(spi_bus, &format_command_0())
             .await
-            .map_err(Command0Error::Spi)?;
+            .map_err(|e| Command0Error::Spi(SpiError::Bus(e)))?;
         if r1 == R1::IN_IDLE_STATE {
             break;
         }
@@ -115,6 +109,10 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command0Error::Spi)?;
+    spi_bus
+        .write(&[0xFF])
+        .await
+        .map_err(|e| Command0Error::Spi(SpiError::Bus(e)))?;
     Ok(())
 }
 
@@ -143,7 +141,7 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
             &format_command_8(false, false, VoltageAccpted::_2_7V_3_6V, check_pattern),
         )
         .await
-        .map_err(Command8Error::Spi)?;
+        .map_err(|e| Command8Error::Spi(SpiError::Bus(e)))?;
         // I'm not sure why, but the embedded-sdmmc crate only breaks here if r1 is exactly R1_ILLEGAL_COMMAND | R1_IDLE_STATE
         // So we'll just do the same
         if r1 == R1::ILLEGAL_COMMAND | R1::IN_IDLE_STATE {
