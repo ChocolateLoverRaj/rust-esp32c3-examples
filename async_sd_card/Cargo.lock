@@ -961,9 +961,6 @@ checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 name = "no_std_hello_world"
 version = "0.1.0"
 dependencies = [
- "bitfield",
- "bitflags 2.10.0",
- "crc",
  "defmt 1.0.1",
  "embassy-executor",
  "embassy-time",
@@ -975,6 +972,7 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "esp-rtos",
+ "spi_sd_card",
 ]
 
 [[package]]
@@ -1209,6 +1207,19 @@ name = "somni-parser"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0f368519fc6c85fc1afdb769fb5a51123f6158013e143656e25a3485a0d401c"
+
+[[package]]
+name = "spi_sd_card"
+version = "0.1.0"
+dependencies = [
+ "bitfield",
+ "bitflags 2.10.0",
+ "crc",
+ "defmt 1.0.1",
+ "embassy-time",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+]
 
 [[package]]
 name = "stable_deref_trait"

@@ -1,11 +1,6 @@
 #![no_std]
 #![no_main]
 
-mod sd_card;
-
-use crate::sd_card::{
-    Command8Error, CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41,
-};
 use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -19,6 +14,9 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println as _;
+use spi_sd_card::{
+    Command8Error, CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41,
+};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
