@@ -3,14 +3,12 @@
 
 mod sd_card;
 
-use defmt::{error, info, warn};
+use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::spi::SpiBus;
-use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_backtrace as _;
 use esp_hal::{
-    delay::Delay,
     gpio::{Level, Output, OutputConfig},
     interrupt::software::SoftwareInterruptControl,
     spi::{
@@ -72,12 +70,7 @@ async fn main(spawner: Spawner) {
     info!("sending CMD8");
     // The check pattern can be anything we want
     let check_pattern = 0xE2;
-    let mut result = command_8(&mut spi_bus, &mut cs, check_pattern).await;
-    if let Err(Command8Error::VoltageNotSupported) = result {
-        warn!("Voltage not supported. Proceeding anyways.");
-        result = Ok(());
-    }
-    match result {
+    match command_8(&mut spi_bus, &mut cs, check_pattern).await {
         Ok(()) => {
             info!("CMD8 Ok");
 
@@ -130,33 +123,36 @@ async fn main(spawner: Spawner) {
             let capacity = csd.card_capacity_bytes();
             info!("Capacity: {}", capacity);
         }
-        Err(Command8Error::IllegalCommand(r1)) => {
-            error!("Illegal command: 0b{:08b}", r1.bits());
-            todo!();
-            info!("sending CMD58");
-            let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
-            info!("OCR: 0b{:032b}", ocr.bits());
-            assert!(ocr.supports_3_3v());
+        Err(Command8Error::VoltageNotSupported) => {
+            error!("Voltage (2.7V-3.6V) not supported");
+        }
+        Err(Command8Error::R1Error(r1)) => {
+            error!("R1 error: 0b{:08b}", r1.bits());
+            todo!("Try to initialize a version 1 SD card");
+            // info!("sending CMD58");
+            // let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
+            // info!("OCR: 0b{:032b}", ocr.bits());
+            // assert!(ocr.supports_3_3v());
 
-            loop {
-                info!("sending CMD55");
-                command_55(&mut spi_bus, &mut cs).await.unwrap();
+            // loop {
+            //     info!("sending CMD55");
+            //     command_55(&mut spi_bus, &mut cs).await.unwrap();
 
-                // Simulate talking to a different SPI device
-                SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+            //     // Simulate talking to a different SPI device
+            //     SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
 
-                info!("sending ACMD41");
-                let is_idle = command_a41(&mut spi_bus, &mut cs, false).await.unwrap();
-                if is_idle {
-                    info!("SD card is not ready yet");
+            //     info!("sending ACMD41");
+            //     let is_idle = command_a41(&mut spi_bus, &mut cs, false).await.unwrap();
+            //     if is_idle {
+            //         info!("SD card is not ready yet");
 
-                    // Simulate talking to a different SPI device
-                    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
-                } else {
-                    break;
-                }
-            }
-            info!("SD card (version 1) is ready");
+            //         // Simulate talking to a different SPI device
+            //         SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+            //     } else {
+            //         break;
+            //     }
+            // }
+            // info!("SD card (version 1) is ready");
         }
         result => result.unwrap(),
     };

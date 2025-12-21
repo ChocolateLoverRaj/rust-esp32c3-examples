@@ -120,12 +120,13 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
 pub enum Command8Error<BusError, CsError> {
     Spi(SpiError<BusError, CsError>),
     /// Cards that don't support version 2 will send this
-    IllegalCommand(R1),
+    R1Error(R1),
     CheckPatternMismatch(u8),
     /// The SD Card does not support 3.3V
     VoltageNotSupported,
 }
 
+/// This function assumes that you are providing 2.6V-3.6V to the SD card.
 pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
     spi_bus: &mut Bus,
     cs: &mut Cs,
@@ -134,53 +135,44 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command8Error::Spi)?;
+    let r1 = card_command::<_, Cs>(
+        spi_bus,
+        &format_command_8(false, false, VoltageAccpted::_2_7V_3_6V, check_pattern),
+    )
+    .await
+    .map_err(|e| Command8Error::Spi(SpiError::Bus(e)))?;
     // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    loop {
-        let r1 = card_command::<_, Cs>(
-            spi_bus,
-            &format_command_8(false, false, VoltageAccpted::_2_7V_3_6V, check_pattern),
-        )
-        .await
-        .map_err(|e| Command8Error::Spi(SpiError::Bus(e)))?;
-        // I'm not sure why, but the embedded-sdmmc crate only breaks here if r1 is exactly R1_ILLEGAL_COMMAND | R1_IDLE_STATE
-        // So we'll just do the same
-        if r1 == R1::ILLEGAL_COMMAND | R1::IN_IDLE_STATE {
-            cs.set_high()
-                .map_err(SpiError::Cs)
-                .map_err(Command8Error::Spi)?;
-            spi_bus
-                .write(&[0xFF])
-                .await
-                .map_err(SpiError::Bus)
-                .map_err(Command8Error::Spi)?;
-            return Err(Command8Error::IllegalCommand(r1));
-        }
-        let mut buffer = [0xFF; 4];
+    if r1 != R1::IN_IDLE_STATE {
+        cs.set_high()
+            .map_err(SpiError::Cs)
+            .map_err(Command8Error::Spi)?;
         spi_bus
-            .transfer_in_place(&mut buffer)
+            .write(&[0xFF])
             .await
             .map_err(SpiError::Bus)
             .map_err(Command8Error::Spi)?;
-        info!("buffer: {:X}", buffer);
-
-        let response_check_pattern = buffer[3];
-        if response_check_pattern == check_pattern {
-            break;
-            // return Err(Command8Error::CheckPatternMismatch(response_check_pattern));
-        }
-
-        let byte_1 = R7Byte1(buffer[0]);
-        info!("CMD8 version: {:02X}", byte_1.get_command_version());
-
-        let byte_3 = R7Byte3(buffer[2]);
-        if !byte_3
-            .get_voltage_accepted()
-            .contains(VoltageAccpted::_2_7V_3_6V)
-        {
-            return Err(Command8Error::VoltageNotSupported);
-        }
-        Timer::after_micros(10).await;
+        return Err(Command8Error::R1Error(r1));
     }
+    let mut buffer = [0xFF; 4];
+    spi_bus
+        .transfer_in_place(&mut buffer)
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command8Error::Spi)?;
+
+    let response_check_pattern = buffer[3];
+    if response_check_pattern != check_pattern {
+        return Err(Command8Error::CheckPatternMismatch(response_check_pattern));
+    }
+
+    let byte_3 = R7Byte3(buffer[2]);
+    if !byte_3
+        .get_voltage_accepted()
+        .contains(VoltageAccpted::_2_7V_3_6V)
+    {
+        return Err(Command8Error::VoltageNotSupported);
+    }
+
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command8Error::Spi)?;
