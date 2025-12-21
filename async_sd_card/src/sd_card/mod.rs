@@ -1,9 +1,12 @@
+mod structs;
+
 use bitfield::bitfield;
 use bitflags::bitflags;
 use crc::{CRC_7_MMC, Crc};
 use defmt::info;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::spi::SpiBus;
+pub use structs::*;
 
 pub fn format_command(command_index: u8, argument: u32) -> [u8; 6] {
     let mut command: [u8; 6] = Default::default();
@@ -25,85 +28,8 @@ pub fn format_command(command_index: u8, argument: u32) -> [u8; 6] {
     command
 }
 
-bitfield! {
-    pub struct CommandByte0(u8);
-
-    bool; pub get_start_bit, set_start_bit: 7;
-    bool; pub get_transmission_bit, set_transmission_bit: 6;
-    u8; pub get_command_index, set_command_index: 5, 0;
-}
-
-bitfield! {
-    pub struct CommandByte5(u8);
-
-    u8; pub get_crc7, set_crc7: 7, 1;
-    bool; pub get_end_bit, set_end_bit: 0;
-}
-
-bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct R1: u8 {
-        const BIT_7 = 1 << 7;
-        const PARAMETER_ERROR = 1 << 6;
-        const ADDRESS_ERROR = 1 << 5;
-        const ERASE_SEQUENCE_ERROR = 1 << 4;
-        const COM_CRC_ERROR = 1 << 3;
-        const ILLEGAL_COMMAND = 1 << 2;
-        const ERASE_RESET = 1 << 1;
-        const IN_IDLE_STATE = 1 << 0;
-    }
-}
-
-bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct R2Byte2: u8 {
-        const OUT_OF_RANGE_OR_CSD_OVERWRITE = 1 << 7;
-        const ERASE_PARAM = 1 << 6;
-        const WP_VIOLATION = 1 << 5;
-        const CARD_ECC_FAILED = 1 << 4;
-        const CC_ERROR = 1 << 3;
-        const ERROR = 1 << 2;
-        const WP_ERASE_SKIP_OR_LOCK_UNLOCK_CMD_FAILED = 1 << 1;
-        const CARD_IS_LOCKED = 1 << 0;
-    }
-}
-
-bitfield! {
-    pub struct R7Byte1(u8);
-
-    u8; pub get_command_version, set_command_version: 7, 4;
-}
-
-bitfield! {
-    pub struct R7Byte3(u8);
-
-    u8; _get_voltage_accepted, _set_volage_accepted: 3, 0;
-}
-
-impl R7Byte3 {
-    pub fn get_voltage_accepted(&self) -> VoltageAccpted {
-        VoltageAccpted::from_bits_retain(self._get_voltage_accepted())
-    }
-}
-
 pub fn format_command_0() -> [u8; 6] {
     format_command(0, 0)
-}
-
-bitfield! {
-    pub struct Command8Argument(u32);
-
-    bool; pub get_pcie_1_2v_support, set_pcie1_2v_support: 13;
-    bool; pub get_pcie_availability, set_pcie_availability: 12;
-    u8; pub get_voltage_accpted, set_voltage_accepted: 11, 8;
-    u8; pub get_check_pattern, set_check_pattern: 7, 0;
-}
-
-bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct VoltageAccpted: u8 {
-        const _2_7V_3_6V = 1 << 1;
-    }
 }
 
 pub fn format_command_8(
@@ -263,4 +189,71 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
         return Err(Command8Error::VoltageNotSupported);
     }
     Ok(())
+}
+
+fn format_command_58() -> [u8; 6] {
+    format_command(58, 0)
+}
+
+#[derive(Debug)]
+pub enum Command58Error<BusError, CsError> {
+    Spi(SpiError<BusError, CsError>),
+    R1Error(R1),
+}
+
+pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
+    spi_bus: &mut Bus,
+    cs: &mut Cs,
+) -> Result<Ocr, Command58Error<Bus::Error, Cs::Error>> {
+    cs.set_low()
+        .map_err(SpiError::Cs)
+        .map_err(Command58Error::Spi)?;
+    spi_bus
+        .write(&format_command_58())
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command58Error::Spi)?;
+    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
+    loop {
+        // Timer::after(Duration::from_millis(1000)).await;
+        let mut buffer = [0xFF; 1];
+        spi_bus
+            .transfer_in_place(&mut buffer)
+            .await
+            .map_err(SpiError::Bus)
+            .map_err(Command58Error::Spi)?;
+        let r1 = R1::from_bits_retain(buffer[0]);
+        if !r1.contains(R1::BIT_7) {
+            if r1 != R1::IN_IDLE_STATE {
+                cs.set_high()
+                    .map_err(SpiError::Cs)
+                    .map_err(Command58Error::Spi)?;
+                spi_bus
+                    .write(&[0xFF])
+                    .await
+                    .map_err(SpiError::Bus)
+                    .map_err(Command58Error::Spi)?;
+                return Err(Command58Error::R1Error(r1));
+            }
+            break;
+        } else {
+            // TODO: Timeout
+        }
+    }
+    let mut buffer = [0xFF; 4];
+    spi_bus
+        .transfer_in_place(&mut buffer)
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command58Error::Spi)?;
+    cs.set_high()
+        .map_err(SpiError::Cs)
+        .map_err(Command58Error::Spi)?;
+    spi_bus
+        .write(&[0xFF])
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command58Error::Spi)?;
+    let ocr = Ocr::from_bits_retain(u32::from_be_bytes(buffer));
+    Ok(ocr)
 }

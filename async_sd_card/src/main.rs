@@ -23,8 +23,8 @@ use esp_hal::{
 use esp_println::{self as _, println};
 
 use crate::sd_card::{
-    R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, format_command, format_command_0,
-    format_command_8,
+    R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, command_58, format_command,
+    format_command_0, format_command_8,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -62,14 +62,12 @@ async fn main(spawner: Spawner) {
     // So 9 bytes
     SpiBus::write(&mut spi_bus, &[0xFF; 9]).await.unwrap();
 
-    // Send CMD0
     info!("sending CMD0");
     command_0(&mut spi_bus, &mut cs).await.unwrap();
 
     // Simulate talking to a different SPI device
     SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
 
-    // Send CMD8
     info!("sending CMD8");
     // The check pattern can be anything we want
     let check_pattern = 0xE2;
@@ -77,4 +75,14 @@ async fn main(spawner: Spawner) {
         .await
         .unwrap();
     info!("CMD8 Ok");
+
+    // Simulate talking to a different SPI device
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+    info!("sending CMD58");
+    let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
+    info!("OCR: 0b{:032b}", ocr.bits());
+    assert!(ocr.supports_3_3v());
+    
+    
 }
