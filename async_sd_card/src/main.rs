@@ -3,6 +3,9 @@
 
 mod sd_card;
 
+use crate::sd_card::{
+    Command8Error, CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41,
+};
 use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -11,20 +14,11 @@ use esp_backtrace as _;
 use esp_hal::{
     gpio::{Level, Output, OutputConfig},
     interrupt::software::SoftwareInterruptControl,
-    spi::{
-        self,
-        master::{Config, Spi},
-    },
+    spi::master::{Config, Spi},
     time::Rate,
     timer::timg::TimerGroup,
 };
-use esp_println::{self as _, println};
-
-use crate::sd_card::{
-    Command8Error, Command58Error, CsdV2, Ocr, R1, R7Byte1, R7Byte3, VoltageAccpted, command_0,
-    command_8, command_9, command_55, command_58, command_a41, format_command, format_command_0,
-    format_command_8,
-};
+use esp_println as _;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 

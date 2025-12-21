@@ -1,9 +1,7 @@
 mod structs;
 
-use bitfield::bitfield;
-use bitflags::bitflags;
 use crc::{CRC_7_MMC, CRC_16_XMODEM, Crc};
-use defmt::{error, info, warn};
+use defmt::warn;
 use embassy_time::Timer;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::spi::SpiBus;
@@ -62,20 +60,7 @@ pub enum Command0Error<BusError, CsError> {
 }
 
 /// Does not modify CS
-pub async fn card_command<Bus: SpiBus, Cs: OutputPin>(
-    spi_bus: &mut Bus,
-    command: &[u8; 6],
-) -> Result<R1, Bus::Error> {
-    // Wait until it returns 0xFF
-    loop {
-        let mut buffer = [0xFF; 1];
-        spi_bus.transfer_in_place(&mut buffer).await?;
-        if buffer[0] == 0xFF {
-            break;
-        } else {
-            warn!("was not 0xFF");
-        }
-    }
+pub async fn card_command<S: SpiBus>(spi_bus: &mut S, command: &[u8; 6]) -> Result<R1, S::Error> {
     spi_bus.write(command).await?;
     let r1 = loop {
         let mut buffer = [0xFF; 1];
@@ -98,14 +83,16 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command0Error::Spi)?;
-    loop {
-        let r1 = card_command::<_, Cs>(spi_bus, &format_command_0())
+    let result = {
+        let r1 = card_command(spi_bus, &format_command_0())
             .await
             .map_err(|e| Command0Error::Spi(SpiError::Bus(e)))?;
         if r1 == R1::IN_IDLE_STATE {
-            break;
+            Ok(())
+        } else {
+            Err(Command0Error::R1Error(r1))
         }
-    }
+    };
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command0Error::Spi)?;
@@ -113,7 +100,7 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
         .write(&[0xFF])
         .await
         .map_err(|e| Command0Error::Spi(SpiError::Bus(e)))?;
-    Ok(())
+    result
 }
 
 #[derive(Debug)]
@@ -135,44 +122,39 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command8Error::Spi)?;
-    let r1 = card_command::<_, Cs>(
+    let r1 = card_command(
         spi_bus,
         &format_command_8(false, false, VoltageAccpted::_2_7V_3_6V, check_pattern),
     )
     .await
     .map_err(|e| Command8Error::Spi(SpiError::Bus(e)))?;
-    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    if r1 != R1::IN_IDLE_STATE {
-        cs.set_high()
-            .map_err(SpiError::Cs)
-            .map_err(Command8Error::Spi)?;
-        spi_bus
-            .write(&[0xFF])
-            .await
-            .map_err(SpiError::Bus)
-            .map_err(Command8Error::Spi)?;
-        return Err(Command8Error::R1Error(r1));
-    }
-    let mut buffer = [0xFF; 4];
-    spi_bus
-        .transfer_in_place(&mut buffer)
-        .await
-        .map_err(SpiError::Bus)
-        .map_err(Command8Error::Spi)?;
+    let result = {
+        if r1 == R1::IN_IDLE_STATE {
+            let mut buffer = [0xFF; 4];
+            spi_bus
+                .transfer_in_place(&mut buffer)
+                .await
+                .map_err(SpiError::Bus)
+                .map_err(Command8Error::Spi)?;
 
-    let response_check_pattern = buffer[3];
-    if response_check_pattern != check_pattern {
-        return Err(Command8Error::CheckPatternMismatch(response_check_pattern));
-    }
-
-    let byte_3 = R7Byte3(buffer[2]);
-    if !byte_3
-        .get_voltage_accepted()
-        .contains(VoltageAccpted::_2_7V_3_6V)
-    {
-        return Err(Command8Error::VoltageNotSupported);
-    }
-
+            let response_check_pattern = buffer[3];
+            if response_check_pattern == check_pattern {
+                let byte_3 = R7Byte3(buffer[2]);
+                if byte_3
+                    .get_voltage_accepted()
+                    .contains(VoltageAccpted::_2_7V_3_6V)
+                {
+                    Ok(())
+                } else {
+                    Err(Command8Error::VoltageNotSupported)
+                }
+            } else {
+                Err(Command8Error::CheckPatternMismatch(response_check_pattern))
+            }
+        } else {
+            Err(Command8Error::R1Error(r1))
+        }
+    };
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command8Error::Spi)?;
@@ -182,11 +164,7 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
         .map_err(SpiError::Bus)
         .map_err(Command8Error::Spi)?;
 
-    Ok(())
-}
-
-fn format_command_58() -> [u8; 6] {
-    format_command(58, 0)
+    result
 }
 
 #[derive(Debug)]
@@ -202,45 +180,27 @@ pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command58Error::Spi)?;
-    spi_bus
-        .write(&format_command_58())
+    let r1 = card_command(spi_bus, &format_command(58, 0))
         .await
-        .map_err(SpiError::Bus)
-        .map_err(Command58Error::Spi)?;
+        .map_err(|e| Command58Error::Spi(SpiError::Bus(e)))?;
     // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    loop {
-        // Timer::after(Duration::from_millis(1000)).await;
-        let mut buffer = [0xFF; 1];
-        spi_bus
-            .transfer_in_place(&mut buffer)
-            .await
-            .map_err(SpiError::Bus)
-            .map_err(Command58Error::Spi)?;
-        let r1 = R1::from_bits_retain(buffer[0]);
-        if !r1.contains(R1::BIT_7) {
-            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
-                break;
-            } else {
-                cs.set_high()
-                    .map_err(SpiError::Cs)
-                    .map_err(Command58Error::Spi)?;
-                spi_bus
-                    .write(&[0xFF])
-                    .await
-                    .map_err(SpiError::Bus)
-                    .map_err(Command58Error::Spi)?;
-                return Err(Command58Error::R1Error(r1));
-            }
+    let result = {
+        // CMD58 can be called before or after ACMD41
+        // The spec suggests calling it before ACMD41 to check that the voltage is compatible
+        // So it's ok if R1 is idle or not idle
+        if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
+            let mut buffer = [0xFF; 4];
+            spi_bus
+                .transfer_in_place(&mut buffer)
+                .await
+                .map_err(SpiError::Bus)
+                .map_err(Command58Error::Spi)?;
+            let ocr = Ocr::from_bits_retain(u32::from_be_bytes(buffer));
+            Ok(ocr)
         } else {
-            // TODO: Timeout
+            Err(Command58Error::R1Error(r1))
         }
-    }
-    let mut buffer = [0xFF; 4];
-    spi_bus
-        .transfer_in_place(&mut buffer)
-        .await
-        .map_err(SpiError::Bus)
-        .map_err(Command58Error::Spi)?;
+    };
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command58Error::Spi)?;
@@ -249,8 +209,7 @@ pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(Command58Error::Spi)?;
-    let ocr = Ocr::from_bits_retain(u32::from_be_bytes(buffer));
-    Ok(ocr)
+    result
 }
 
 #[derive(Debug)]
@@ -259,11 +218,10 @@ pub enum Command55Error<BusError, CsError> {
     R1Error(R1),
 }
 
-/// Returns if the SD card is in idle state
 pub async fn command_55<Bus: SpiBus, Cs: OutputPin>(
     spi_bus: &mut Bus,
     cs: &mut Cs,
-) -> Result<bool, Command55Error<Bus::Error, Cs::Error>> {
+) -> Result<(), Command55Error<Bus::Error, Cs::Error>> {
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command55Error::Spi)?;
@@ -273,7 +231,7 @@ pub async fn command_55<Bus: SpiBus, Cs: OutputPin>(
         .map_err(SpiError::Bus)
         .map_err(Command55Error::Spi)?;
     // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    let is_idle = loop {
+    let result = loop {
         // Timer::after(Duration::from_millis(1000)).await;
         let mut buffer = [0xFF; 1];
         spi_bus
@@ -283,19 +241,11 @@ pub async fn command_55<Bus: SpiBus, Cs: OutputPin>(
             .map_err(Command55Error::Spi)?;
         let r1 = R1::from_bits_retain(buffer[0]);
         if !r1.contains(R1::BIT_7) {
-            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
-                break r1.contains(R1::IN_IDLE_STATE);
+            break if r1 == R1::IN_IDLE_STATE {
+                Ok(())
             } else {
-                cs.set_high()
-                    .map_err(SpiError::Cs)
-                    .map_err(Command55Error::Spi)?;
-                spi_bus
-                    .write(&[0xFF])
-                    .await
-                    .map_err(SpiError::Bus)
-                    .map_err(Command55Error::Spi)?;
-                return Err(Command55Error::R1Error(r1));
-            }
+                Err(Command55Error::R1Error(r1))
+            };
         } else {
             // TODO: Timeout
         }
@@ -308,21 +258,13 @@ pub async fn command_55<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(Command55Error::Spi)?;
-    Ok(is_idle)
+    result
 }
 
 #[derive(Debug)]
 pub enum CommandA41Error<BusError, CsError> {
     Spi(SpiError<BusError, CsError>),
     R1Error(R1),
-}
-
-fn format_command_a41(host_supports_hcs: bool) -> [u8; 6] {
-    format_command(41, {
-        let mut argument = CommandA41Argument::default();
-        argument.set(CommandA41Argument::HCS, host_supports_hcs);
-        argument.bits()
-    })
 }
 
 /// Returns if the SD card is idle
@@ -334,39 +276,22 @@ pub async fn command_a41<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(CommandA41Error::Spi)?;
-    spi_bus
-        .write(&format_command_a41(host_supports_hcs))
-        .await
-        .map_err(SpiError::Bus)
-        .map_err(CommandA41Error::Spi)?;
+    let r1 = card_command(
+        spi_bus,
+        &format_command(41, {
+            let mut argument = CommandA41Argument::default();
+            argument.set(CommandA41Argument::HCS, host_supports_hcs);
+            argument.bits()
+        }),
+    )
+    .await
+    .map_err(|e| CommandA41Error::Spi(SpiError::Bus(e)))?;
     // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    let is_idle = loop {
-        // Timer::after(Duration::from_millis(1000)).await;
-        let mut buffer = [0xFF; 1];
-        spi_bus
-            .transfer_in_place(&mut buffer)
-            .await
-            .map_err(SpiError::Bus)
-            .map_err(CommandA41Error::Spi)?;
-        let r1 = R1::from_bits_retain(buffer[0]);
-        if !r1.contains(R1::BIT_7) {
-            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
-                break r1.contains(R1::IN_IDLE_STATE);
-            } else {
-                error!("R1: 0b{:08b}", r1.bits());
-                cs.set_high()
-                    .map_err(SpiError::Cs)
-                    .map_err(CommandA41Error::Spi)?;
-                spi_bus
-                    .write(&[0xFF])
-                    .await
-                    .map_err(SpiError::Bus)
-                    .map_err(CommandA41Error::Spi)?;
-                return Err(CommandA41Error::R1Error(r1));
-            }
+    let result = {
+        if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
+            Ok(r1.contains(R1::IN_IDLE_STATE))
         } else {
-            warn!("waiting");
-            // TODO: Timeout
+            Err(CommandA41Error::R1Error(r1))
         }
     };
     cs.set_high()
@@ -377,7 +302,7 @@ pub async fn command_a41<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(CommandA41Error::Spi)?;
-    Ok(is_idle)
+    result
 }
 
 #[derive(Debug)]
@@ -393,61 +318,42 @@ pub async fn command_9<Bus: SpiBus, Cs: OutputPin>(
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command9Error::Spi)?;
-    spi_bus
-        .write(&format_command(9, 0))
+    let r1 = card_command(spi_bus, &format_command(9, 0))
         .await
-        .map_err(SpiError::Bus)
-        .map_err(Command9Error::Spi)?;
-    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
-    loop {
-        // Timer::after(Duration::from_millis(1000)).await;
-        let mut buffer = [0xFF; 1];
-        spi_bus
-            .transfer_in_place(&mut buffer)
-            .await
-            .map_err(SpiError::Bus)
-            .map_err(Command9Error::Spi)?;
-        let r1 = R1::from_bits_retain(buffer[0]);
-        if !r1.contains(R1::BIT_7) {
-            if r1.is_empty() {
+        .map_err(|e| Command9Error::Spi(SpiError::Bus(e)))?;
+    let result = if r1.is_empty() {
+        // TODO: Are we allowed to talk to other SPI devices during this time?
+        loop {
+            let mut buffer = [0xFF; 1];
+            spi_bus
+                .transfer_in_place(&mut buffer)
+                .await
+                .map_err(SpiError::Bus)
+                .map_err(Command9Error::Spi)?;
+            let byte = buffer[0];
+            if byte != 0xFF {
                 break;
             } else {
-                error!("R1: 0b{:08b}", r1.bits());
-                cs.set_high()
-                    .map_err(SpiError::Cs)
-                    .map_err(Command9Error::Spi)?;
-                spi_bus
-                    .write(&[0xFF])
-                    .await
-                    .map_err(SpiError::Bus)
-                    .map_err(Command9Error::Spi)?;
-                return Err(Command9Error::R1Error(r1));
+                // TODO: Timeout
             }
-        } else {
-            // TODO: Timeout
         }
-    }
-    // TODO: Are we allowed to talk to other SPI devices during this time?
-    loop {
-        let mut buffer = [0xFF; 1];
+        let mut buffer = [0xFF; 18];
         spi_bus
             .transfer_in_place(&mut buffer)
             .await
             .map_err(SpiError::Bus)
             .map_err(Command9Error::Spi)?;
-        let byte = buffer[0];
-        if byte != 0xFF {
-            break;
+        let (csd, crc) = buffer.split_at(16);
+        let csd = <&[u8; 16]>::try_from(csd).unwrap();
+        let crc = u16::from_be_bytes(*<&[u8; 2]>::try_from(crc).unwrap());
+        if crc == Crc::<u16>::new(&CRC_16_XMODEM).checksum(csd) {
+            Ok(u128::from_be_bytes(*csd))
         } else {
-            // TODO: Timeout
+            Err(Command9Error::InvalidChecksum)
         }
-    }
-    let mut buffer = [0xFF; 18];
-    spi_bus
-        .transfer_in_place(&mut buffer)
-        .await
-        .map_err(SpiError::Bus)
-        .map_err(Command9Error::Spi)?;
+    } else {
+        return Err(Command9Error::R1Error(r1));
+    };
     cs.set_high()
         .map_err(SpiError::Cs)
         .map_err(Command9Error::Spi)?;
@@ -456,12 +362,5 @@ pub async fn command_9<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(Command9Error::Spi)?;
-
-    let (csd, crc) = buffer.split_at(16);
-    let csd = <&[u8; 16]>::try_from(csd).unwrap();
-    let crc = u16::from_be_bytes(*<&[u8; 2]>::try_from(crc).unwrap());
-    if crc != Crc::<u16>::new(&CRC_16_XMODEM).checksum(csd) {
-        return Err(Command9Error::InvalidChecksum);
-    }
-    Ok(u128::from_be_bytes(*csd))
+    result
 }
