@@ -14,7 +14,9 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println as _;
-use spi_sd_card::{CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41};
+use spi_sd_card::{
+    CsdV2, command_0, command_8, command_9, command_55, command_58, command_59, command_a41,
+};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -63,6 +65,12 @@ async fn main(spawner: Spawner) {
             result => result.unwrap(),
         }
     }
+
+    // Simulate talking to a different SPI device
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+    info!("Enabling CRC");
+    command_59(&mut spi_bus, &mut cs, true).await.unwrap();
 
     // Simulate talking to a different SPI device
     SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
