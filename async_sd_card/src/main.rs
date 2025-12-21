@@ -15,7 +15,8 @@ use esp_hal::{
 };
 use esp_println as _;
 use spi_sd_card::{
-    Cid, CsdV2, command_0, command_8, command_9, command_55, command_58, command_59, command_a41,
+    Cid, CsdV2, command_0, command_8, command_9, command_13, command_55, command_58, command_59,
+    command_a41,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -152,6 +153,17 @@ async fn main(spawner: Spawner) {
             info!("Product Revision: 0x{:02X}", cid.get_prv());
             info!("Product serial number: 0x{:08X}", cid.get_psn());
             info!("Manufacturing year: {}", cid.get_mdt().year());
+
+            loop {
+                info!("Checking that the SD card is still connected");
+                let r2_byte_1 = command_13(&mut spi_bus, &mut cs).await.unwrap();
+                if !r2_byte_1.is_empty() {
+                    error!("R2 contains an error flag");
+                    break;
+                }
+                info!("SD card is still connected");
+                Timer::after_secs(2).await;
+            }
         }
         Err(spi_sd_card::Error::VoltageNotSupported) => {
             error!("Voltage (2.7V-3.6V) not supported");
