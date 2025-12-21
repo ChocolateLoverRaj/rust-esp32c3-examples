@@ -395,7 +395,7 @@ pub enum Command9Error<BusError, CsError> {
 pub async fn command_9<Bus: SpiBus, Cs: OutputPin>(
     spi_bus: &mut Bus,
     cs: &mut Cs,
-) -> Result<[u8; 16], Command9Error<Bus::Error, Cs::Error>> {
+) -> Result<u128, Command9Error<Bus::Error, Cs::Error>> {
     cs.set_low()
         .map_err(SpiError::Cs)
         .map_err(Command9Error::Spi)?;
@@ -469,5 +469,5 @@ pub async fn command_9<Bus: SpiBus, Cs: OutputPin>(
     if crc != Crc::<u16>::new(&CRC_16_XMODEM).checksum(csd) {
         return Err(Command9Error::InvalidChecksum);
     }
-    Ok(*csd)
+    Ok(u128::from_be_bytes(*csd))
 }

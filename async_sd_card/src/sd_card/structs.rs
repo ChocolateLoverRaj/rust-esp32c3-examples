@@ -132,3 +132,15 @@ bitfield! {
     u8; pub get_status, set_status: 3, 1;
     bool; pub get_bit_0, set_bit_0: 0;
 }
+
+bitfield! {
+    pub struct CsdV2(u128);
+
+    u32; pub get_c_size, set_c_size: 75, 48;
+}
+
+impl CsdV2 {
+    pub fn card_capacity_bytes(&self) -> u64 {
+        (u64::from(self.get_c_size()) + 1) * 512 * 1024
+    }
+}
