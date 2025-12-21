@@ -8,7 +8,7 @@ rustflags = [
 ]
 
 [env]
-DEFMT_LOG="info"
+DEFMT_LOG="trace"
 
 [build]
 rustflags = [

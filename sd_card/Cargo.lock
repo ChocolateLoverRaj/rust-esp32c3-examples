@@ -431,10 +431,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce3c7f9ea039eeafc4a49597b7bd5ae3a1c8e51b2803a381cb0f29ce90fe1ec6"
 dependencies = [
  "byteorder",
+ "defmt 0.3.100",
  "embedded-hal 1.0.0",
  "embedded-io 0.6.1",
  "heapless 0.8.0",
- "log",
 ]
 
 [[package]]

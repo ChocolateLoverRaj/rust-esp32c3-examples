@@ -47,6 +47,7 @@ async fn main(spawner: Spawner) {
         Delay::new(),
         AcquireOpts {
             // acquire_retries: 1,
+            use_crc: false,
             ..Default::default()
         },
     );
@@ -79,6 +80,6 @@ async fn main(spawner: Spawner) {
             }
             Err(e) => println!("Err: {e:#?}"),
         }
-        Timer::after(Duration::from_secs(2)).await;
+        Timer::after(Duration::from_secs(200000)).await;
     }
 }
