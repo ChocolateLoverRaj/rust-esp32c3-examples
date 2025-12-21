@@ -72,7 +72,12 @@ async fn main(spawner: Spawner) {
     info!("sending CMD8");
     // The check pattern can be anything we want
     let check_pattern = 0xE2;
-    match command_8(&mut spi_bus, &mut cs, check_pattern).await {
+    let mut result = command_8(&mut spi_bus, &mut cs, check_pattern).await;
+    if let Err(Command8Error::VoltageNotSupported) = result {
+        warn!("Voltage not supported. Proceeding anyways.");
+        result = Ok(());
+    }
+    match result {
         Ok(()) => {
             info!("CMD8 Ok");
 
@@ -125,11 +130,9 @@ async fn main(spawner: Spawner) {
             let capacity = csd.card_capacity_bytes();
             info!("Capacity: {}", capacity);
         }
-        Err(Command8Error::VoltageNotSupported) => {
-            warn!("Voltage not supported")
-        }
-        Err(Command8Error::IllegalCommand) => {
-            error!("Illegal command");
+        Err(Command8Error::IllegalCommand(r1)) => {
+            error!("Illegal command: 0b{:08b}", r1.bits());
+            todo!();
             info!("sending CMD58");
             let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
             info!("OCR: 0b{:032b}", ocr.bits());

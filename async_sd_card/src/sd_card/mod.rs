@@ -84,7 +84,11 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
             .map_err(Command0Error::Spi)?;
         let r1 = R1::from_bits_retain(buffer[0]);
         if !r1.contains(R1::BIT_7) {
-            break r1;
+            if r1 == R1::IN_IDLE_STATE {
+                break r1;
+            } else {
+                return Err(Command0Error::R1Error(r1));
+            }
         } else {
             // TODO: Timeout
         }
@@ -108,7 +112,7 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
 pub enum Command8Error<BusError, CsError> {
     Spi(SpiError<BusError, CsError>),
     /// Cards that don't support version 2 will send this
-    IllegalCommand,
+    IllegalCommand(R1),
     CheckPatternMismatch(u8),
     /// The SD Card does not support 3.3V
     VoltageNotSupported,
@@ -152,7 +156,7 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
                     .await
                     .map_err(SpiError::Bus)
                     .map_err(Command8Error::Spi)?;
-                return Err(Command8Error::IllegalCommand);
+                return Err(Command8Error::IllegalCommand(r1));
             }
             break;
         } else {
