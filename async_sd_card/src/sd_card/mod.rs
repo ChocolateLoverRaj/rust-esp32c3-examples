@@ -3,7 +3,7 @@ mod structs;
 use bitfield::bitfield;
 use bitflags::bitflags;
 use crc::{CRC_7_MMC, CRC_16_XMODEM, Crc};
-use defmt::{error, info};
+use defmt::{error, info, warn};
 use embassy_time::Timer;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::spi::SpiBus;
@@ -97,7 +97,7 @@ pub async fn command_0<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(Command0Error::Spi)?;
-    if r1 == R1::IN_IDLE_STATE {
+    if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
         Ok(())
     } else {
         Err(Command0Error::R1Error(r1))
@@ -173,6 +173,7 @@ pub async fn command_8<Bus: SpiBus, Cs: OutputPin>(
         .await
         .map_err(SpiError::Bus)
         .map_err(Command8Error::Spi)?;
+    info!("buffer: {:X}", buffer);
 
     let response_check_pattern = buffer[3];
     if response_check_pattern != check_pattern {
@@ -372,6 +373,7 @@ pub async fn command_a41<Bus: SpiBus, Cs: OutputPin>(
                 return Err(CommandA41Error::R1Error(r1));
             }
         } else {
+            warn!("waiting");
             // TODO: Timeout
         }
     };

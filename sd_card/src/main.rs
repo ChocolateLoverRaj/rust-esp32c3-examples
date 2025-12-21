@@ -34,7 +34,7 @@ async fn main(spawner: Spawner) {
         ExclusiveDevice::new(
             Spi::new(
                 peripherals.SPI2,
-                Config::default().with_frequency(Rate::from_khz(400)),
+                Config::default().with_frequency(Rate::from_mhz(2)),
             )
             .unwrap()
             .with_sck(peripherals.GPIO7)
@@ -46,7 +46,7 @@ async fn main(spawner: Spawner) {
         .unwrap(),
         Delay::new(),
         AcquireOpts {
-            acquire_retries: 1,
+            // acquire_retries: 1,
             ..Default::default()
         },
     );
