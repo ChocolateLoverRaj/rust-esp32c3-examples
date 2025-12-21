@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use defmt::{error, info};
+use defmt::{error, info, warn};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::spi::SpiBus;
@@ -14,9 +14,7 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println as _;
-use spi_sd_card::{
-    Command8Error, CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41,
-};
+use spi_sd_card::{CsdV2, command_0, command_8, command_9, command_55, command_58, command_a41};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -54,7 +52,17 @@ async fn main(spawner: Spawner) {
     SpiBus::write(&mut spi_bus, &[0xFF; 9]).await.unwrap();
 
     info!("sending CMD0");
-    command_0(&mut spi_bus, &mut cs).await.unwrap();
+    loop {
+        match command_0(&mut spi_bus, &mut cs).await {
+            Ok(()) => {
+                break;
+            }
+            Err(spi_sd_card::Error::BadR1(r1)) => {
+                warn!("Got response: 0b{:08b}. Retrying...", r1.bits());
+            }
+            result => result.unwrap(),
+        }
+    }
 
     // Simulate talking to a different SPI device
     SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
@@ -120,10 +128,10 @@ async fn main(spawner: Spawner) {
             let capacity = csd.card_capacity_bytes();
             info!("Capacity: {}", capacity);
         }
-        Err(Command8Error::VoltageNotSupported) => {
+        Err(spi_sd_card::Error::VoltageNotSupported) => {
             error!("Voltage (2.7V-3.6V) not supported");
         }
-        Err(Command8Error::R1Error(r1)) => {
+        Err(spi_sd_card::Error::BadR1(r1)) => {
             error!("R1 error: 0b{:08b}", r1.bits());
             todo!("Try to initialize a version 1 SD card");
             // info!("sending CMD58");
