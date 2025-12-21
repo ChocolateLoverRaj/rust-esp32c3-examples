@@ -3,7 +3,7 @@
 
 mod sd_card;
 
-use defmt::info;
+use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::spi::SpiBus;
@@ -23,8 +23,8 @@ use esp_hal::{
 use esp_println::{self as _, println};
 
 use crate::sd_card::{
-    R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, command_58, format_command,
-    format_command_0, format_command_8,
+    Command58Error, Ocr, R1, R7Byte1, R7Byte3, VoltageAccpted, command_0, command_8, command_55,
+    command_58, command_a41, format_command, format_command_0, format_command_8,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -83,6 +83,37 @@ async fn main(spawner: Spawner) {
     let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
     info!("OCR: 0b{:032b}", ocr.bits());
     assert!(ocr.supports_3_3v());
-    
-    
+
+    // Simulate talking to a different SPI device
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+    loop {
+        info!("sending CMD55");
+        command_55(&mut spi_bus, &mut cs).await.unwrap();
+
+        // Simulate talking to a different SPI device
+        SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+        info!("sending ACMD41");
+        let is_idle = command_a41(&mut spi_bus, &mut cs, true).await.unwrap();
+        if is_idle {
+            info!("SD card is not ready yet");
+
+            // Simulate talking to a different SPI device
+            SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+        } else {
+            break;
+        }
+    }
+
+    // Simulate talking to a different SPI device
+    SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
+
+    info!("sending CMD58");
+    let ocr = command_58(&mut spi_bus, &mut cs).await.unwrap();
+    if ocr.supports_sdhc_or_sdxc().expect("card not powered up") {
+        info!("Card is in SDHC or SDXC mode");
+    } else {
+        info!("Card is standard capacity")
+    }
 }

@@ -3,7 +3,7 @@ mod structs;
 use bitfield::bitfield;
 use bitflags::bitflags;
 use crc::{CRC_7_MMC, Crc};
-use defmt::info;
+use defmt::{error, info};
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::spi::SpiBus;
 pub use structs::*;
@@ -224,7 +224,9 @@ pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
             .map_err(Command58Error::Spi)?;
         let r1 = R1::from_bits_retain(buffer[0]);
         if !r1.contains(R1::BIT_7) {
-            if r1 != R1::IN_IDLE_STATE {
+            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
+                break;
+            } else {
                 cs.set_high()
                     .map_err(SpiError::Cs)
                     .map_err(Command58Error::Spi)?;
@@ -235,7 +237,6 @@ pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
                     .map_err(Command58Error::Spi)?;
                 return Err(Command58Error::R1Error(r1));
             }
-            break;
         } else {
             // TODO: Timeout
         }
@@ -256,4 +257,130 @@ pub async fn command_58<Bus: SpiBus, Cs: OutputPin>(
         .map_err(Command58Error::Spi)?;
     let ocr = Ocr::from_bits_retain(u32::from_be_bytes(buffer));
     Ok(ocr)
+}
+
+#[derive(Debug)]
+pub enum Command55Error<BusError, CsError> {
+    Spi(SpiError<BusError, CsError>),
+    R1Error(R1),
+}
+
+/// Returns if the SD card is in idle state
+pub async fn command_55<Bus: SpiBus, Cs: OutputPin>(
+    spi_bus: &mut Bus,
+    cs: &mut Cs,
+) -> Result<bool, Command55Error<Bus::Error, Cs::Error>> {
+    cs.set_low()
+        .map_err(SpiError::Cs)
+        .map_err(Command55Error::Spi)?;
+    spi_bus
+        .write(&format_command(55, 0))
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command55Error::Spi)?;
+    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
+    let is_idle = loop {
+        // Timer::after(Duration::from_millis(1000)).await;
+        let mut buffer = [0xFF; 1];
+        spi_bus
+            .transfer_in_place(&mut buffer)
+            .await
+            .map_err(SpiError::Bus)
+            .map_err(Command55Error::Spi)?;
+        let r1 = R1::from_bits_retain(buffer[0]);
+        if !r1.contains(R1::BIT_7) {
+            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
+                break r1.contains(R1::IN_IDLE_STATE);
+            } else {
+                cs.set_high()
+                    .map_err(SpiError::Cs)
+                    .map_err(Command55Error::Spi)?;
+                spi_bus
+                    .write(&[0xFF])
+                    .await
+                    .map_err(SpiError::Bus)
+                    .map_err(Command55Error::Spi)?;
+                return Err(Command55Error::R1Error(r1));
+            }
+        } else {
+            // TODO: Timeout
+        }
+    };
+    cs.set_high()
+        .map_err(SpiError::Cs)
+        .map_err(Command55Error::Spi)?;
+    spi_bus
+        .write(&[0xFF])
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(Command55Error::Spi)?;
+    Ok(is_idle)
+}
+
+#[derive(Debug)]
+pub enum CommandA41Error<BusError, CsError> {
+    Spi(SpiError<BusError, CsError>),
+    R1Error(R1),
+}
+
+fn format_command_a41(host_supports_hcs: bool) -> [u8; 6] {
+    format_command(41, {
+        let mut argument = CommandA41Argument::default();
+        argument.set(CommandA41Argument::HCS, host_supports_hcs);
+        argument.bits()
+    })
+}
+
+/// Returns if the SD card is idle
+pub async fn command_a41<Bus: SpiBus, Cs: OutputPin>(
+    spi_bus: &mut Bus,
+    cs: &mut Cs,
+    host_supports_hcs: bool,
+) -> Result<bool, CommandA41Error<Bus::Error, Cs::Error>> {
+    cs.set_low()
+        .map_err(SpiError::Cs)
+        .map_err(CommandA41Error::Spi)?;
+    spi_bus
+        .write(&format_command_a41(host_supports_hcs))
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(CommandA41Error::Spi)?;
+    // We're not allowed to talk to other SPI devices between sending the command and receiving a response
+    let is_idle = loop {
+        // Timer::after(Duration::from_millis(1000)).await;
+        let mut buffer = [0xFF; 1];
+        spi_bus
+            .transfer_in_place(&mut buffer)
+            .await
+            .map_err(SpiError::Bus)
+            .map_err(CommandA41Error::Spi)?;
+        let r1 = R1::from_bits_retain(buffer[0]);
+        if !r1.contains(R1::BIT_7) {
+            if r1 == R1::IN_IDLE_STATE || r1.is_empty() {
+                break r1.contains(R1::IN_IDLE_STATE);
+            } else {
+                error!("R1: 0b{:08b}", r1.bits());
+                cs.set_high()
+                    .map_err(SpiError::Cs)
+                    .map_err(CommandA41Error::Spi)?;
+                spi_bus
+                    .write(&[0xFF])
+                    .await
+                    .map_err(SpiError::Bus)
+                    .map_err(CommandA41Error::Spi)?;
+                return Err(CommandA41Error::R1Error(r1));
+            }
+        } else {
+            // TODO: Timeout
+        }
+    };
+    cs.set_high()
+        .map_err(SpiError::Cs)
+        .map_err(CommandA41Error::Spi)?;
+    spi_bus
+        .write(&[0xFF])
+        .await
+        .map_err(SpiError::Bus)
+        .map_err(CommandA41Error::Spi)?;
+    Ok(is_idle)
 }

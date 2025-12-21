@@ -93,8 +93,8 @@ bitflags! {
         const S18A = 1 << 24;
         const CO2T = 1 << 27;
         const UHS_II = 1 << 29;
-        const CCS = 1 << 30;
-        const BUSY = 1 << 31;
+        const CARD_CAPACITY_STATUS = 1 << 30;
+        const CARD_POWER_UP_STATUS = 1 << 31;
     }
 }
 
@@ -102,5 +102,25 @@ impl Ocr {
     /// If the SD card supports 3.3V, according to its OCR
     pub fn supports_3_3v(&self) -> bool {
         self.contains(Self::_3_2V_3_3V) || self.contains(Self::_3_3V_3_4V)
+    }
+
+    pub fn is_powered_up(&self) -> bool {
+        self.contains(Self::CARD_POWER_UP_STATUS)
+    }
+
+    /// Note that if the card is powered up, the `CCS` bit is not valid, so the card must be powered up to know.
+    pub fn supports_sdhc_or_sdxc(&self) -> Option<bool> {
+        if self.is_powered_up() {
+            Some(self.contains(Self::CARD_CAPACITY_STATUS))
+        } else {
+            None
+        }
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+    pub struct CommandA41Argument: u32 {
+        const HCS = 1 << 30;
     }
 }
