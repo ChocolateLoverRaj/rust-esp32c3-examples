@@ -107,6 +107,11 @@ async fn main(spawner: Spawner) {
                 info!("Card is standard capacity")
             }
 
+            // At this point we can start using 25 MHz
+            spi_bus
+                .apply_config(&Config::default().with_frequency(Rate::from_mhz(25)))
+                .unwrap();
+
             // Simulate talking to a different SPI device
             SpiBus::write(&mut spi_bus, &[0xFF; 1000]).await.unwrap();
 
