@@ -74,7 +74,7 @@ bitfield! {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct VoltageAccpted: u8 {
-        const _2_7V_3_6V = 1 << 1;
+        const _2_7V_3_6V = 1 << 0;
     }
 }
 

@@ -34,7 +34,7 @@ async fn main(spawner: Spawner) {
         ExclusiveDevice::new(
             Spi::new(
                 peripherals.SPI2,
-                Config::default().with_frequency(Rate::from_mhz(2)),
+                Config::default().with_frequency(Rate::from_khz(400)),
             )
             .unwrap()
             .with_sck(peripherals.GPIO7)
