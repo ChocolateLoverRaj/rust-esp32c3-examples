@@ -7,6 +7,8 @@ use embassy_time::{Duration, Instant, Timer};
 use embedded_hal_async::spi::SpiBus;
 use esp_backtrace as _;
 use esp_hal::{
+    dma::{DmaRxBuf, DmaTxBuf},
+    dma_buffers,
     gpio::{Level, Output, OutputConfig},
     interrupt::software::SoftwareInterruptControl,
     spi::master::{Config, Spi},
@@ -32,6 +34,10 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
+    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(512);
+    let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+    let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+
     let mut spi_bus = Spi::new(
         peripherals.SPI2,
         Config::default().with_frequency(Rate::from_khz(400)),
@@ -40,6 +46,8 @@ async fn main(spawner: Spawner) {
     .with_sck(peripherals.GPIO7)
     .with_mosi(peripherals.GPIO6)
     .with_miso(peripherals.GPIO5)
+    .with_dma(peripherals.DMA_CH0)
+    .with_buffers(dma_rx_buf, dma_tx_buf)
     .into_async();
 
     let mut cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());

@@ -17,12 +17,12 @@ embassy-time = { version = "0.5.0", features = ["defmt"] }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-hal-bus = "0.3.0"
-esp-backtrace = { version = "0.18.1", features = ["defmt", "panic-handler"] }
+esp-backtrace = { version = "0.18.1", features = ["panic-handler", "println"] }
 esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
-spi_sd_card = { path = "../../spi_sd_card" }
+spi_sd_card = { version = "0.1.0", path = "../../spi_sd_card", features = ["defmt", "chrono"] }
 
 [features]
 default = ["esp32c3"]
@@ -32,4 +32,5 @@ esp32c3 = [
     "esp-backtrace/esp32c3",
     "esp-println/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
+    "spi_sd_card/esp32c3"
 ]

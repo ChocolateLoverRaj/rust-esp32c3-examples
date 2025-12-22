@@ -5,16 +5,14 @@ use defmt::{Format, info};
 use embassy_executor::Spawner;
 use esp_backtrace as _;
 use esp_hal::{
-    dma_buffers, dma_tx_buffer,
-    i2s::master::{Channels, Config, DataFormat, I2s, UnitConfig},
+    dma_buffers,
+    i2s::master::{Config, DataFormat, I2s, UnitConfig},
     interrupt::software::SoftwareInterruptControl,
     time::Rate,
     timer::timg::TimerGroup,
 };
 use esp_println as _;
-use zerocopy::{
-    FromBytes, Immutable, KnownLayout, Unaligned, transmute, transmute_ref, try_transmute_ref,
-};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 

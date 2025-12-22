@@ -4,7 +4,7 @@
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::ExclusiveDevice;
-use embedded_sdmmc::{SdCard, SdCardError, sdcard::AcquireOpts};
+use embedded_sdmmc::{Block, BlockDevice, BlockIdx, SdCard, SdCardError, sdcard::AcquireOpts};
 use esp_backtrace as _;
 use esp_hal::{
     delay::Delay,
@@ -69,6 +69,14 @@ async fn main(spawner: Spawner) {
                         Some(num_bytes) => {
                             let size = SizeFormatter::new(num_bytes, BINARY);
                             println!("Card detected with size {size}");
+                            println!("Reading...");
+                            sd_card
+                                .read(
+                                    &mut core::array::from_fn::<_, 128, _>(|_| Block::new()),
+                                    BlockIdx(0),
+                                )
+                                .unwrap();
+                            println!("Done reading");
                             sd_card.mark_card_uninit();
                         }
                         None => {
