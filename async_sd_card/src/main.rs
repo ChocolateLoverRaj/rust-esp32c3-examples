@@ -15,8 +15,8 @@ use esp_hal::{
 };
 use esp_println as _;
 use spi_sd_card::{
-    Cid, CsdV2, command_0, command_8, command_9, command_13, command_17, command_55, command_58,
-    command_59, command_a41,
+    Cid, CsdV2, command_0, command_8, command_9, command_13, command_17, command_18, command_55,
+    command_58, command_59, command_a41,
 };
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -157,32 +157,36 @@ async fn main(spawner: Spawner) {
             info!("Reading data");
             let before = Instant::now();
             let blocks_to_read = 20_480.min(capacity / 512) as u32;
-            for i in 0..blocks_to_read {
-                let mut buffer = [Default::default(); _];
-                match command_17(&mut spi_bus, &mut cs, i, &mut buffer).await {
-                    Ok(()) => {
-                        // info!("Read block {}", i)
-                    }
-                    Err(spi_sd_card::Error::SpiBus(_)) | Err(spi_sd_card::Error::CsPin(_)) => {
-                        error!("[{}] SPI erorr", i);
-                    }
-                    Err(spi_sd_card::Error::BadR1(r1)) => {
-                        error!("[{}] Bad r1: 0b{:08b}", i, r1.bits());
-                    }
-                    Err(spi_sd_card::Error::BadData(data)) => {
-                        error!("[{}] Bad data: 0x{:02X}", i, data);
-                    }
-                    Err(spi_sd_card::Error::InvalidChecksum) => {
-                        error!("[{}] Invalid checksum", i);
-                    }
-                    _ => unreachable!(),
-                };
-            }
+            let success_count = command_18(&mut spi_bus, &mut cs, 0, blocks_to_read)
+                .await
+                .unwrap();
+            // for i in 0..blocks_to_read {
+            //     let mut buffer = [Default::default(); _];
+            //     match command_17(&mut spi_bus, &mut cs, i, &mut buffer).await {
+            //         Ok(()) => {
+            //             // info!("Read block {}", i)
+            //         }
+            //         Err(spi_sd_card::Error::SpiBus(_)) | Err(spi_sd_card::Error::CsPin(_)) => {
+            //             error!("[{}] SPI erorr", i);
+            //         }
+            //         Err(spi_sd_card::Error::BadR1(r1)) => {
+            //             error!("[{}] Bad r1: 0b{:08b}", i, r1.bits());
+            //         }
+            //         Err(spi_sd_card::Error::BadData(data)) => {
+            //             error!("[{}] Bad data: 0x{:02X}", i, data);
+            //         }
+            //         Err(spi_sd_card::Error::InvalidChecksum) => {
+            //             error!("[{}] Invalid checksum", i);
+            //         }
+            //         _ => unreachable!(),
+            //     };
+            // }
             let after = Instant::now();
             info!(
-                "Read {} blocks in {} ms",
+                "Attempted to read {} blocks in {} ms. {} blocks were successfully read.",
                 blocks_to_read,
-                (after - before).as_millis()
+                (after - before).as_millis(),
+                success_count
             );
 
             // loop {
