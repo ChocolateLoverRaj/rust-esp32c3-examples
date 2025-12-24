@@ -22,7 +22,11 @@ esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
-spi_sd_card = { version = "0.1.0", path = "../../spi_sd_card", features = ["defmt", "chrono"] }
+heapless = "0.9.2"
+pure_fat = { version = "0.1.0", path = "../../pure_fat" }
+pure_mbr = { version = "0.1.0", path = "../../pure_mbr" }
+spi_sd_card = { version = "0.1.0", path = "../../spi_sd_card", features = ["defmt", "chrono", "embassy-sync"] }
+zerocopy = "0.8.31"
 
 [features]
 default = ["esp32c3"]

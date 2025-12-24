@@ -16,10 +16,17 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println as _;
-use spi_sd_card::{
-    Cid, CsdV2, command_0, command_8, command_9, command_13, command_17, command_18, command_55,
-    command_58, command_59, command_a41,
+use esp_println::println;
+use heapless::String;
+use pure_fat::{
+    Bpb, DirEntryParser, DirSector, Fat12DirEntry, LongFileNameEntry, ParseEntryOutput,
 };
+use pure_mbr::GenericMbr;
+use spi_sd_card::{
+    Cid, CsdV2, command_0, command_8, command_9, command_13, command_17, command_55, command_58,
+    command_59, command_a41, demo_command_18,
+};
+use zerocopy::{transmute, transmute_ref};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -51,6 +58,10 @@ async fn main(spawner: Spawner) {
     .into_async();
 
     let mut cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());
+
+    // spi_sd_card::demo(spi_bus, dma_tx_buf, dma_rx_buf, &mut cs)
+    //     .await
+    //     .unwrap();
 
     // The spec says to wait 1ms from when the SD card gets power
     // Realistically it has already been 1ms but just to be sure we can wait 1ms
@@ -162,12 +173,105 @@ async fn main(spawner: Spawner) {
             info!("Product serial number: 0x{:08X}", cid.get_psn());
             info!("Manufacturing year: {}", cid.get_mdt().year());
 
-            info!("Reading data");
-            let before = Instant::now();
-            let blocks_to_read = 20_480.min(capacity / 512) as u32;
-            let success_count = command_18(&mut spi_bus, &mut cs, 0, blocks_to_read)
+            info!("Reading MBR");
+            let mut block_0 = [Default::default(); _];
+            command_17(&mut spi_bus, &mut cs, 0, &mut block_0)
                 .await
                 .unwrap();
+            let mbr: GenericMbr = transmute!(block_0);
+            for partition in mbr
+                .partition_entries
+                .iter()
+                .filter(|entry| !entry.is_empty())
+            {
+                println!("Found partition: {:#?}", partition);
+
+                let mut start_sector = [Default::default(); _];
+                command_17(
+                    &mut spi_bus,
+                    &mut cs,
+                    partition.start_sector(),
+                    &mut start_sector,
+                )
+                .await
+                .unwrap();
+                let bpb: Bpb = transmute!(start_sector);
+                println!("BPB: {:#?}", bpb);
+                println!("FAT Type: {:#?}", bpb.fat_type());
+                let mut cluster_number = bpb.root_dir_start_cluster();
+                let mut parser = DirEntryParser::default();
+                'read_root_dir: loop {
+                    for block_index in 0..u32::try_from(bpb.bytes_per_cluster() / 512).unwrap() {
+                        let mut block = [Default::default(); _];
+                        command_17(
+                            &mut spi_bus,
+                            &mut cs,
+                            partition.start_sector()
+                                + u32::try_from(bpb.cluster_start(cluster_number) / 512).unwrap()
+                                + block_index,
+                            &mut block,
+                        )
+                        .await
+                        .unwrap();
+                        let dir_sector: DirSector = transmute!(block);
+                        // let entries: [Fat12DirEntry; 16] = transmute!(dir_sector.entries);
+                        // println!("Entries: {:#?}", entries);
+                        // let entries: [LongFileNameEntry; 16] = transmute!(dir_sector.entries);
+                        // println!("Entries as long file name entires: {:#?}", entries);
+                        for entry in &dir_sector.entries {
+                            match parser.parse_entry(entry).unwrap() {
+                                ParseEntryOutput::KeepReadingToParseCurrentEntry(new_parser) => {
+                                    parser = new_parser;
+                                }
+                                ParseEntryOutput::KeepReadingToParseNextEntry(entry) => {
+                                    parser = Default::default();
+                                    if let Some(entry) = entry {
+                                        // Max len of UTF-8 from UTF-16 of [u16; N] is [u8; N * 3]
+                                        let name = String::<{ 255 * 3 }>::from_utf16(&entry.name);
+                                        println!("Name: {:?}", name);
+                                    }
+                                }
+                                ParseEntryOutput::DoneReadingEntries => {
+                                    break 'read_root_dir;
+                                }
+                            }
+                        }
+                    }
+                    let mut info_block = [Default::default(); _];
+                    let cluster_info_start = bpb.cluster_info_start(cluster_number);
+                    command_17(
+                        &mut spi_bus,
+                        &mut cs,
+                        partition.start_sector() + u32::try_from(cluster_info_start / 512).unwrap(),
+                        &mut info_block,
+                    )
+                    .await
+                    .unwrap();
+                    let info_start_within_block =
+                        usize::try_from(cluster_info_start % 512).unwrap();
+                    let info = &info_block[info_start_within_block
+                        ..info_start_within_block + bpb.cluster_info_size()];
+                    if let Some(next_cluster_number) = bpb.next_cluster_number(info).unwrap() {
+                        cluster_number = next_cluster_number;
+                    } else {
+                        break;
+                    }
+                }
+                info!("Done reading all entries of root dir");
+            }
+
+            // info!("Reading data");
+            // let before = Instant::now();
+            // let blocks_to_read = 100.min(capacity / 512) as u32;
+            // let success_count = demo_command_18(
+            //     &mut spi_bus,
+            //     &mut cs,
+            //     0,
+            //     blocks_to_read,
+            //     &mut [Default::default(); 64 * 1024],
+            // )
+            // .await
+            // .unwrap();
             // for i in 0..blocks_to_read {
             //     let mut buffer = [Default::default(); _];
             //     match command_17(&mut spi_bus, &mut cs, i, &mut buffer).await {
@@ -189,13 +293,13 @@ async fn main(spawner: Spawner) {
             //         _ => unreachable!(),
             //     };
             // }
-            let after = Instant::now();
-            info!(
-                "Attempted to read {} blocks in {} ms. {} blocks were successfully read.",
-                blocks_to_read,
-                (after - before).as_millis(),
-                success_count
-            );
+            // let after = Instant::now();
+            // info!(
+            //     "Attempted to read {} blocks in {} ms. {} blocks were successfully read.",
+            //     blocks_to_read,
+            //     (after - before).as_millis(),
+            //     success_count
+            // );
 
             // loop {
             //     info!("Checking that the SD card is still connected");

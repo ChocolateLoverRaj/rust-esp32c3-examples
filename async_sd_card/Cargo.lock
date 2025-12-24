@@ -981,7 +981,11 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "esp-rtos",
+ "heapless 0.9.2",
+ "pure_fat",
+ "pure_mbr",
  "spi_sd_card",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1064,6 +1068,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ee95bc4ef87b8d5ba32e8b7714ccc834865276eab0aed5c9958d00ec45f49e8"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "pure_fat"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.10.0",
+ "heapless 0.9.2",
+ "zerocopy",
+]
+
+[[package]]
+name = "pure_mbr"
+version = "0.1.0"
+dependencies = [
+ "zerocopy",
 ]
 
 [[package]]
@@ -1226,6 +1246,7 @@ dependencies = [
  "chrono",
  "crc",
  "defmt 1.0.1",
+ "embassy-sync 0.7.2",
  "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-hal-async",
@@ -1437,6 +1458,26 @@ name = "xtensa-lx-rt-proc-macros"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96fb42cd29c42f8744c74276e9f5bee7b06685bbe5b88df891516d72cb320450"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd74ec98b9250adb3ca554bdde269adf631549f51d8a8f8f0a10b50f1cb298c3"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8a8d209fdf45cf5138cbb5a506f6b52522a25afccc534d1475dad8e31105c6a"
 dependencies = [
  "proc-macro2",
  "quote",
