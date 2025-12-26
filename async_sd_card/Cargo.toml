@@ -11,12 +11,16 @@ doctest = false
 bench = false
 
 [dependencies]
+crc = "3.4.0"
 defmt = "1.0.1"
+embassy-embedded-hal = "0.5.0"
 embassy-executor = "0.9.1"
+embassy-sync = { version = "0.7.2", features = ["defmt"] }
 embassy-time = { version = "0.5.0", features = ["defmt"] }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-hal-bus = "0.3.0"
+embedded-timers = "0.4.0"
 esp-backtrace = { version = "0.18.1", features = ["panic-handler", "println"] }
 esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }

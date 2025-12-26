@@ -465,6 +465,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-timers"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b13fd4109a4b9b49b1c747c64b2d813f33639b723e2c3b7b36190edd051bc06"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "nb 1.1.0",
+ "void",
+]
+
+[[package]]
 name = "enumset"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -970,12 +981,16 @@ checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 name = "no_std_hello_world"
 version = "0.1.0"
 dependencies = [
+ "crc",
  "defmt 1.0.1",
+ "embassy-embedded-hal",
  "embassy-executor",
+ "embassy-sync 0.7.2",
  "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-hal-async",
  "embedded-hal-bus",
+ "embedded-timers",
  "esp-backtrace",
  "esp-bootloader-esp-idf",
  "esp-hal",
@@ -1246,6 +1261,7 @@ dependencies = [
  "chrono",
  "crc",
  "defmt 1.0.1",
+ "embassy-embedded-hal",
  "embassy-sync 0.7.2",
  "embassy-time",
  "embedded-hal 1.0.0",
