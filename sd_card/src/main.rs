@@ -45,11 +45,7 @@ async fn main(spawner: Spawner) {
         )
         .unwrap(),
         Delay::new(),
-        AcquireOpts {
-            // acquire_retries: 1,
-            use_crc: false,
-            ..Default::default()
-        },
+        AcquireOpts::default(),
     );
 
     let mut prev_card_present = None;
@@ -70,12 +66,14 @@ async fn main(spawner: Spawner) {
                             let size = SizeFormatter::new(num_bytes, BINARY);
                             println!("Card detected with size {size}");
                             println!("Reading...");
-                            sd_card
-                                .read(
-                                    &mut core::array::from_fn::<_, 128, _>(|_| Block::new()),
-                                    BlockIdx(0),
-                                )
-                                .unwrap();
+                            for i in 0..10 {
+                                sd_card
+                                    .read(
+                                        &mut core::array::from_fn::<_, 64, _>(|_| Block::new()),
+                                        BlockIdx(i * 64),
+                                    )
+                                    .unwrap();
+                            }
                             println!("Done reading");
                             sd_card.mark_card_uninit();
                         }

@@ -69,44 +69,41 @@ async fn main(spawner: Spawner) {
         Config::default().with_frequency(Rate::from_mhz(25)),
     );
 
-    if let Ok(mut card) = sd_card.init_card().await {
-        info!("Got card");
-        let capacity = card.capacity().await.unwrap();
-        info!("Card capacity: {} B", capacity);
+    let mut card = sd_card.init_card().await.unwrap();
+    info!("Got card");
+    let capacity = card.capacity().await.unwrap();
+    info!("Card capacity: {} B", capacity);
 
-        let bytes_to_read = (100 * 8 * 1024).min(capacity);
-        let mut buffer = [Default::default(); 512 * 64];
-        let mut bytes_read = 0;
-        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let mut digest = crc.digest();
-        let start = Instant::now();
-        while bytes_read < bytes_to_read {
-            card.read(bytes_read, &mut buffer).await.unwrap();
-            // In case we think the data isn't being properly read
-            // digest.update(&buffer);
-            bytes_read += buffer.len() as u64;
-        }
-        let crc32 = digest.finalize();
-        info!(
-            "Read {} B / {} us. crc32: {:08x}",
-            bytes_read,
-            start.elapsed().as_micros(),
-            crc32
-        );
+    let bytes_to_read = (100 * 8 * 1024).min(capacity);
+    let mut buffer = [Default::default(); 512 * 64];
+    let mut bytes_read = 0;
+    let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+    let mut digest = crc.digest();
+    let start = Instant::now();
+    while bytes_read < bytes_to_read {
+        card.read(bytes_read, &mut buffer).await.unwrap();
+        // In case we think the data isn't being properly read
+        // digest.update(&buffer);
+        bytes_read += buffer.len() as u64;
+    }
+    let crc32 = digest.finalize();
+    info!(
+        "Read {} B / {} us. crc32: {:08x}",
+        bytes_read,
+        start.elapsed().as_micros(),
+        crc32
+    );
 
-        let mut first_sector = [Default::default(); 512];
-        card.read(0, &mut first_sector).await.unwrap();
-        info!("First sector: {:02X}", first_sector);
-        let mbr: GenericMbr = transmute!(first_sector);
-        for partition in mbr
-            .partition_entries
-            .iter()
-            .filter(|entry| !entry.is_empty())
-        {
-            println!("Partition: {:?}", partition);
-        }
-    } else {
-        error!("Error getting card");
+    let mut first_sector = [Default::default(); 512];
+    card.read(0, &mut first_sector).await.unwrap();
+    info!("First sector: {:02X}", first_sector);
+    let mbr: GenericMbr = transmute!(first_sector);
+    for partition in mbr
+        .partition_entries
+        .iter()
+        .filter(|entry| !entry.is_empty())
+    {
+        println!("Partition: {:?}", partition);
     }
 
     // // spi_sd_card::demo(spi_bus, dma_tx_buf, dma_rx_buf, &mut cs)
