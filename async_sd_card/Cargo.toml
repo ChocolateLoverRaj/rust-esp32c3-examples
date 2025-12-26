@@ -40,5 +40,4 @@ esp32c3 = [
     "esp-backtrace/esp32c3",
     "esp-println/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
-    "spi_sd_card/esp32c3"
 ]

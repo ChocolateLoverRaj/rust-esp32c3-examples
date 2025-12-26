@@ -25,10 +25,7 @@ use pure_fat::{
     Bpb, DirEntryParser, DirSector, Fat12DirEntry, LongFileNameEntry, ParseEntryOutput,
 };
 use pure_mbr::GenericMbr;
-use spi_sd_card::{
-    Cid, CsdV2, Disk, EmbassySharedSpiBus, SpiSdCard, command_0, command_8, command_9, command_13,
-    command_17, command_55, command_58, command_59, command_a41, demo_command_18,
-};
+use spi_sd_card::{Disk, EmbassySharedSpiBus, SpiSdCard};
 use zerocopy::transmute;
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -75,13 +72,31 @@ async fn main(spawner: Spawner) {
     info!("Card capacity: {} B", capacity);
 
     let bytes_to_read = (100 * 8 * 1024).min(capacity);
-    let mut buffer = [Default::default(); 512 * 64];
+    let mut buffer = [Default::default(); 512 * 1];
     let mut bytes_read = 0;
     let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
     let mut digest = crc.digest();
     let start = Instant::now();
     while bytes_read < bytes_to_read {
-        card.read(bytes_read, &mut buffer).await.unwrap();
+        info!("bytes read so far: {}", bytes_read);
+        let mut attempts = 0;
+        loop {
+            if attempts == 10 {
+                error!("10 attempts failed. Resetting and switching to single block reads.");
+                card = sd_card.init_card().await.unwrap();
+                card.enable_read_multiple = false;
+                attempts = 0;
+            }
+            match card.read(bytes_read, &mut buffer).await {
+                Ok(()) => {
+                    break;
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            }
+            attempts += 1;
+        }
         // In case we think the data isn't being properly read
         // digest.update(&buffer);
         bytes_read += buffer.len() as u64;
