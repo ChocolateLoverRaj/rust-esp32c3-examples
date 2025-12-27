@@ -41,3 +41,6 @@ esp32c3 = [
     "esp-println/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
 ]
+
+[patch.crates-io]
+crc = { path = "../../crc-rs" }
