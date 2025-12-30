@@ -13,7 +13,7 @@ bench = false
 [dependencies]
 defmt = "1.0.1"
 embassy-executor = "0.9.1"
-esp-backtrace = { version = "0.18.1", features = ["defmt", "panic-handler"] }
+esp-backtrace = { version = "0.18.1", features = ["println", "panic-handler"] }
 esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }

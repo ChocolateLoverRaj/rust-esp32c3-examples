@@ -5,7 +5,7 @@ use defmt::{Format, info};
 use embassy_executor::Spawner;
 use esp_backtrace as _;
 use esp_hal::{
-    dma_buffers,
+    dma_circular_buffers,
     i2s::master::{Config, DataFormat, I2s, UnitConfig},
     interrupt::software::SoftwareInterruptControl,
     time::Rate,
@@ -31,15 +31,16 @@ async fn main(spawner: Spawner) {
 
     let wav_file = include_bytes!("../test.wav");
 
-    let mut i2s = I2s::new(peripherals.I2S0, peripherals.DMA_CH0, Config::new_tdm_msb())
+    let i2s = I2s::new(peripherals.I2S0, peripherals.DMA_CH0, Config::new_tdm_msb())
         .unwrap()
         .into_async();
-    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(0, 100 * 1024);
+    let (_rx_buffer, _rx_descriptors, tx_buffer, tx_descriptors) =
+        dma_circular_buffers!(0, 100 * 1024);
     let mut tx = Some(
         i2s.i2s_tx
-            .with_bclk(peripherals.GPIO20)
+            .with_bclk(peripherals.GPIO2)
             .with_dout(peripherals.GPIO1)
-            .with_ws(peripherals.GPIO7)
+            .with_ws(peripherals.GPIO3)
             .build(tx_descriptors),
     );
     let mut tx_buffer = Some(tx_buffer);
@@ -123,29 +124,32 @@ async fn main(spawner: Spawner) {
             "data" => {
                 let data_pos = offset + size_of::<ChunkHeader>();
                 let audio_len = (chunk_size / 2 * 2) as usize;
-                info!("playing {} bytes", audio_len);
-                let mut data_remaining = &root_chunk_data[data_pos..data_pos + audio_len];
                 let mut transfer = tx
                     .take()
                     .unwrap()
                     .write_dma_circular_async(tx_buffer.take().unwrap())
                     .unwrap();
-                while !data_remaining.is_empty() {
-                    let available = transfer.available().await.unwrap();
-                    let bytes_to_push = data_remaining.len().min(available);
-                    info!("available: {}. pushing: {}.", available, bytes_to_push);
-                    let mut bytes_left_to_push = bytes_to_push;
-                    while bytes_left_to_push >= size_of::<i16>() {
-                        let mut value = i16::from_le_bytes(
-                            *<&[u8; 2]>::try_from(&data_remaining[..size_of::<i16>()]).unwrap(),
-                        );
-                        value /= 16;
-                        transfer.push(&value.to_le_bytes()).await.unwrap();
-                        data_remaining = &data_remaining[size_of::<i16>()..];
-                        bytes_left_to_push -= size_of::<i16>();
+                loop {
+                    info!("playing {} bytes", audio_len);
+                    let mut data_remaining = &root_chunk_data[data_pos..data_pos + audio_len];
+                    while !data_remaining.is_empty() {
+                        let available = transfer.available().await.unwrap();
+                        let bytes_to_push = data_remaining.len().min(available);
+                        info!("available: {}. pushing: {}.", available, bytes_to_push);
+                        let mut bytes_left_to_push = bytes_to_push;
+                        while bytes_left_to_push >= size_of::<i16>() {
+                            let mut value = i16::from_le_bytes(
+                                *<&[u8; 2]>::try_from(&data_remaining[..size_of::<i16>()]).unwrap(),
+                            );
+                            value /= 64;
+                            transfer.push(&value.to_le_bytes()).await.unwrap();
+                            data_remaining = &data_remaining[size_of::<i16>()..];
+                            bytes_left_to_push -= size_of::<i16>();
+                        }
                     }
+                    info!("done playing");
+                    break;
                 }
-                info!("done playing");
             }
             _ => info!("unknown chunk id: {}", chunk_id),
         }

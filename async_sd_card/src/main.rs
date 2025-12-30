@@ -72,47 +72,47 @@ async fn main(spawner: Spawner) {
     info!("Card capacity: {} B", capacity);
 
     // // Testing partial reads
-    // let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+    let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
     // let mut buffer = [Default::default(); 20349];
     // card.read(3948, &mut buffer).await.unwrap();
     // defmt::info!("crc: {:x}", crc.checksum(&buffer));
 
-    // let bytes_to_read = (1 * 1024 * 1024).min(capacity);
-    // let mut buffer = [Default::default(); 512 * 32];
-    // let mut bytes_read = 0;
-    // let mut digest = crc.digest();
-    // let start = Instant::now();
-    // while bytes_read < bytes_to_read {
-    //     // info!("bytes read so far: {}", bytes_read);
-    //     let mut attempts = 0;
-    //     loop {
-    //         if attempts == 10 {
-    //             error!("10 attempts failed. Resetting and switching to single block reads.");
-    //             card = sd_card.init_card().await.unwrap();
-    //             card.enable_read_multiple = false;
-    //             attempts = 0;
-    //         }
-    //         match card.read(bytes_read, &mut buffer).await {
-    //             Ok(()) => {
-    //                 break;
-    //             }
-    //             Err(e) => {
-    //                 println!("Error: {:?}", e);
-    //             }
-    //         }
-    //         attempts += 1;
-    //     }
-    //     // In case we think the data isn't being properly read
-    //     digest.update(&buffer);
-    //     bytes_read += buffer.len() as u64;
-    // }
-    // let crc32 = digest.finalize();
-    // info!(
-    //     "Read {} B / {} us. crc32: {:08x}",
-    //     bytes_read,
-    //     start.elapsed().as_micros(),
-    //     crc32
-    // );
+    let bytes_to_read = (1 * 1024 * 1024).min(capacity);
+    let mut buffer = [Default::default(); 512 * 1];
+    let mut bytes_read = 0;
+    let mut digest = crc.digest();
+    let start = Instant::now();
+    while bytes_read < bytes_to_read {
+        // info!("bytes read so far: {}", bytes_read);
+        let mut attempts = 0;
+        loop {
+            if attempts == 10 {
+                error!("10 attempts failed. Resetting and switching to single block reads.");
+                card = sd_card.init_card().await.unwrap();
+                card.enable_read_multiple = false;
+                attempts = 0;
+            }
+            match card.read(bytes_read, &mut buffer).await {
+                Ok(()) => {
+                    break;
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            }
+            attempts += 1;
+        }
+        // In case we think the data isn't being properly read
+        digest.update(&buffer);
+        bytes_read += buffer.len() as u64;
+    }
+    let crc32 = digest.finalize();
+    info!(
+        "Read {} B / {} us. crc32: {:08x}",
+        bytes_read,
+        start.elapsed().as_micros(),
+        crc32
+    );
 
     let mut first_sector = [Default::default(); 512];
     card.read(0, &mut first_sector).await.unwrap();

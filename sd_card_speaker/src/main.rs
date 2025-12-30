@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
-use core::mem::transmute;
+use core::{cmp::min, mem::transmute};
 
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
-use embassy_time::Delay;
+use embassy_time::{Delay, Instant};
 use esp_backtrace as _;
 use esp_hal::{
     dma::{DmaRxBuf, DmaTxBuf},
@@ -25,7 +25,7 @@ use esp_println::println;
 use heapless::String;
 use pure_fat::{
     Bpb, DirEntryParser, ParseEntryOutput, ReadClusterInfo, ReadFile, ReadFileInput,
-    ReadFileOutput, ReadFilePart, StateMachine as _,
+    ReadFileOutput, ReadFilePart, StateMachine as _, StreamFile, StreamInput, StreamOutput,
 };
 use pure_mbr::GenericMbr;
 use pure_wav::{
@@ -33,7 +33,7 @@ use pure_wav::{
     WaveFile, parse_top_header,
 };
 use spi_sd_card::{BLOCK_SIZE, Disk, EmbassySharedSpiBus, SpiSdCard};
-use zerocopy::{transmute, transmute_ref};
+use zerocopy::{FromBytes, Immutable, IntoBytes, transmute, transmute_mut, transmute_ref};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -100,7 +100,7 @@ async fn main(spawner: Spawner) {
     let mut parser = DirEntryParser::default();
     let mut block_address = None;
     let mut block = [Default::default(); BLOCK_SIZE];
-    let (first_cluster_number, size) = loop {
+    let (wave_file_start_cluster_number, wave_file_size) = loop {
         if entry_index_within_cluster == bpb.bytes_per_cluster() / 32 {
             let mut cluster_info_buffer = [Default::default(); Bpb::MAX_CLUSTER_INFO_SIZE];
             let cluster_info = &mut cluster_info_buffer[..bpb.cluster_info_size()];
@@ -115,7 +115,8 @@ async fn main(spawner: Spawner) {
                 None => break None,
             }
         }
-        let entry_address = bpb.cluster_start(cluster_number) + entry_index_within_cluster * 32;
+        let entry_address =
+            bpb.cluster_start(cluster_number) + entry_index_within_cluster as u64 * 32;
         let required_block_address = entry_address / BLOCK_SIZE as u64 * BLOCK_SIZE as u64;
         if !block_address.is_some_and(|block_address| block_address == required_block_address) {
             card.read(partition_start + required_block_address, &mut block)
@@ -155,7 +156,8 @@ async fn main(spawner: Spawner) {
             GetMetaDataForI2sOutput::Done(output) => break output,
             GetMetaDataForI2sOutput::Read(ReadRequest { address, size }) => {
                 let mut buffer = [Default::default(); GetMetaDataForI2s::MAX_READ_LEN];
-                let mut read_file = ReadFile::new(&bpb, first_cluster_number, address, size);
+                let mut read_file =
+                    ReadFile::new(&bpb, wave_file_start_cluster_number, address, size);
                 loop {
                     let output = read_file.output();
                     match output {
@@ -208,12 +210,143 @@ async fn main(spawner: Spawner) {
     .unwrap()
     .into_async();
     let (_rx_buffer, _rx_descriptors, tx_buffer, tx_descriptors) =
-        dma_circular_buffers!(0, 16 * 1024);
-    let mut tx = i2s
-        .i2s_tx
-        .with_bclk(peripherals.GPIO2)
-        .with_dout(peripherals.GPIO1)
-        .with_ws(peripherals.GPIO3)
-        .build(tx_descriptors);
-    let mut transfer = tx.write_dma_circular_async(tx_buffer).unwrap();
+        dma_circular_buffers!(0, 8 * 1024);
+    let mut tx_buffer = Some(tx_buffer);
+    let mut tx = Some(
+        i2s.i2s_tx
+            .with_bclk(peripherals.GPIO2)
+            .with_dout(peripherals.GPIO1)
+            .with_ws(peripherals.GPIO3)
+            .build(tx_descriptors),
+    );
+    let mut transfer = None;
+
+    let before = Instant::now();
+    let mut stream = StreamFile::new(&bpb, wave_file_size, wave_file_start_cluster_number);
+    loop {
+        match stream.output().unwrap() {
+            StreamOutput::Cluster(cluster) => {
+                println!("File cluster: {cluster:X?}");
+
+                let mut bytes_read = 0;
+                while bytes_read < cluster.len {
+                    let mut buffer = [i16::default(); 512 * 4 / 2];
+                    let bytes_to_read = min(cluster.len - bytes_read, (buffer.len() * 2) as u32);
+                    card.read(
+                        partition_start + cluster.address + bytes_read as u64,
+                        &mut buffer.as_mut_bytes()[..bytes_to_read as usize],
+                    )
+                    .await
+                    .unwrap();
+
+                    for byte in &mut buffer[..(bytes_to_read / 2) as usize] {
+                        *byte /= 16;
+                    }
+
+                    println!("Pushing 0x{bytes_to_read:X} bytes to the SPI DMA");
+                    transfer
+                        .get_or_insert_with(|| {
+                            tx.take()
+                                .unwrap()
+                                .write_dma_circular_async(tx_buffer.take().unwrap())
+                                .unwrap()
+                        })
+                        .push(&buffer.as_bytes()[..bytes_to_read as usize])
+                        .await
+                        .unwrap();
+
+                    bytes_read += bytes_to_read;
+                }
+
+                stream.input(StreamInput::Next);
+            }
+            StreamOutput::ReadClusterInfo(ReadClusterInfo {
+                address_in_partition,
+                len,
+            }) => {
+                let mut info_buffer = [Default::default(); Bpb::MAX_CLUSTER_INFO_SIZE];
+                let info_buffer = &mut info_buffer[..len];
+                card.read(partition_start + address_in_partition, info_buffer)
+                    .await
+                    .unwrap();
+                stream.input(StreamInput::ClusterInfo(info_buffer));
+            }
+            StreamOutput::Done => {
+                break;
+            }
+        }
+    }
+    println!(
+        "Done reading clusters of wave file in {} B / {} us",
+        wave_file_size,
+        before.elapsed().as_micros()
+    );
+    return;
+
+    let mut position = 0;
+    #[derive(Debug, FromBytes, IntoBytes, Immutable)]
+    #[repr(C, align(2))]
+    struct Buffer {
+        data: [u8; 8192],
+    }
+
+    let mut buffer = Buffer {
+        data: [Default::default(); _],
+    };
+    loop {
+        let len = min(buffer.data.len() as u32, wave_file_size - position);
+        let mut read_file = ReadFile::new(&bpb, wave_file_start_cluster_number, position, len);
+        loop {
+            let output = read_file.output();
+            match output {
+                ReadFileOutput::Done => {
+                    break;
+                }
+                ReadFileOutput::ReadFilePart(ReadFilePart {
+                    address_in_buffer,
+                    address_in_partition,
+                    copy_len,
+                }) => {
+                    card.read(
+                        partition_start + address_in_partition,
+                        &mut buffer.data[address_in_buffer..address_in_buffer + copy_len],
+                    )
+                    .await
+                    .unwrap();
+                    read_file.input(ReadFileInput::DoneReadingPart);
+                }
+                ReadFileOutput::ReadClusterInfo(ReadClusterInfo {
+                    address_in_partition,
+                    len,
+                }) => {
+                    let mut info_buffer = [Default::default(); Bpb::MAX_CLUSTER_INFO_SIZE];
+                    let info_buffer = &mut info_buffer[..len];
+                    card.read(partition_start + address_in_partition, info_buffer)
+                        .await
+                        .unwrap();
+                    read_file.input(ReadFileInput::ReadClusterInfo(info_buffer));
+                }
+            }
+        }
+        position += len;
+        let buffer_i16: &mut [i16; 4096] = transmute_mut!(&mut buffer);
+        for n in buffer_i16 {
+            *n /= 32;
+        }
+
+        // transfer
+        //     .get_or_insert_with(|| {
+        //         tx.take()
+        //             .unwrap()
+        //             .write_dma_circular_async(tx_buffer.take().unwrap())
+        //             .unwrap()
+        //     })
+        //     .push(&buffer.data)
+        //     .await
+        //     .unwrap();
+        info!("Successfully pushed data");
+        if position == wave_file_size {
+            break;
+        }
+    }
 }
