@@ -324,14 +324,16 @@ async fn main(spawner: Spawner) {
             let mut transfer = tx.write_dma_circular_async(tx_buffer).unwrap();
             loop {
                 reader.wait_until_available(1).await;
-                match transfer.available().await {
-                    Err(i2s::master::Error::DmaError(DmaError::Late)) => {
-                        warn!("late");
-                    }
-                    result => {
-                        result.unwrap();
-                    }
-                };
+                transfer
+                    .available()
+                    .await
+                    .inspect_err(|e| match e {
+                        i2s::master::Error::DmaError(DmaError::Late) => {
+                            warn!("late");
+                        }
+                        _ => {}
+                    })
+                    .unwrap();
                 transfer
                     .push_with(|buffer| {
                         let read_buffer = reader.read_buffer();
