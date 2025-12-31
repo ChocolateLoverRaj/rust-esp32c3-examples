@@ -121,8 +121,12 @@ async fn main(spawner: Spawner) {
                     parser = Default::default();
                     if let Some(entry) = entry {
                         // Max len of UTF-8 from UTF-16 of [u16; N] is [u8; N * 3]
-                        let name = String::<{ 255 * 3 }>::from_utf16(&entry.name);
-                        println!("Name: {:?}", name);
+                        let name = String::<{ 255 * 3 }>::from_utf16(&entry.name).unwrap();
+                        if entry.volume_id {
+                            println!("Volume Label: {:?}", name);
+                        } else {
+                            println!("File: {:?}", name);
+                        }
                     }
                 }
                 ParseEntryOutput::DoneReadingEntries => {
