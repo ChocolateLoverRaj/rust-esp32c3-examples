@@ -1,13 +1,10 @@
 #![no_std]
 #![no_main]
 
-use crc::{CRC_32_ISO_HDLC, Crc};
-use defmt::{error, info, warn};
+use defmt::info;
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
-use embassy_time::{Delay, Duration, Instant, Timer};
-use embedded_hal_async::spi::SpiBus;
-use embedded_timers::clock::Clock;
+use embassy_time::Delay;
 use esp_backtrace as _;
 use esp_hal::{
     dma::{DmaRxBuf, DmaTxBuf},
@@ -21,11 +18,9 @@ use esp_hal::{
 use esp_println as _;
 use esp_println::println;
 use heapless::String;
-use pure_fat::{
-    Bpb, DirEntry, DirEntryParser, DirSector, Fat12DirEntry, LongFileNameEntry, ParseEntryOutput,
-};
+use pure_fat::{Bpb, DirEntryParser, ParseEntryOutput};
 use pure_mbr::GenericMbr;
-use spi_sd_card::{BLOCK_SIZE, Disk, EmbassySharedSpiBus, SdCardDisk, SpiSdCard};
+use spi_sd_card::{BLOCK_SIZE, Disk, EmbassySharedSpiBus, SpiSdCard};
 use zerocopy::transmute;
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -45,7 +40,7 @@ async fn main(spawner: Spawner) {
     let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
     let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
 
-    let mut spi_bus = Mutex::<CriticalSectionRawMutex, _>::new(
+    let spi_bus = Mutex::<CriticalSectionRawMutex, _>::new(
         Spi::new(peripherals.SPI2, Config::default())
             .unwrap()
             .with_sck(peripherals.GPIO7)
@@ -70,49 +65,6 @@ async fn main(spawner: Spawner) {
     info!("Got card");
     let capacity = card.capacity().await.unwrap();
     info!("Card capacity: {} B", capacity);
-
-    // // Testing partial reads
-    let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-    // let mut buffer = [Default::default(); 20349];
-    // card.read(3948, &mut buffer).await.unwrap();
-    // defmt::info!("crc: {:x}", crc.checksum(&buffer));
-
-    let bytes_to_read = (1 * 1024 * 1024).min(capacity);
-    let mut buffer = [Default::default(); 512 * 1];
-    let mut bytes_read = 0;
-    let mut digest = crc.digest();
-    let start = Instant::now();
-    while bytes_read < bytes_to_read {
-        // info!("bytes read so far: {}", bytes_read);
-        let mut attempts = 0;
-        loop {
-            if attempts == 10 {
-                error!("10 attempts failed. Resetting and switching to single block reads.");
-                card = sd_card.init_card().await.unwrap();
-                card.enable_read_multiple = false;
-                attempts = 0;
-            }
-            match card.read(bytes_read, &mut buffer).await {
-                Ok(()) => {
-                    break;
-                }
-                Err(e) => {
-                    println!("Error: {:?}", e);
-                }
-            }
-            attempts += 1;
-        }
-        // In case we think the data isn't being properly read
-        digest.update(&buffer);
-        bytes_read += buffer.len() as u64;
-    }
-    let crc32 = digest.finalize();
-    info!(
-        "Read {} B / {} us. crc32: {:08x}",
-        bytes_read,
-        start.elapsed().as_micros(),
-        crc32
-    );
 
     let mut first_sector = [Default::default(); 512];
     card.read(0, &mut first_sector).await.unwrap();
@@ -150,7 +102,8 @@ async fn main(spawner: Spawner) {
                     None => break,
                 }
             }
-            let entry_address = bpb.cluster_start(cluster_number) + entry_index_within_cluster * 32;
+            let entry_address =
+                bpb.cluster_start(cluster_number) + entry_index_within_cluster as u64 * 32;
             let required_block_address = entry_address / BLOCK_SIZE as u64 * BLOCK_SIZE as u64;
             if !block_address.is_some_and(|block_address| block_address == required_block_address) {
                 card.read(partition_start + required_block_address, &mut block)
