@@ -143,6 +143,7 @@ async fn main(spawner: Spawner) {
                             entry_index_within_cluster += 1;
                         }
                         info!("Done reading all entries of root dir");
+                        card.test().await?;
                     }
                     Ok::<_, spi_sd_card::Error<_, _>>(())
                 })()
