@@ -4,7 +4,7 @@
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
-use embassy_time::Delay;
+use embassy_time::{Delay, Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::{
     dma::{DmaRxBuf, DmaTxBuf},
@@ -61,80 +61,123 @@ async fn main(spawner: Spawner) {
         Config::default().with_frequency(Rate::from_mhz(25)),
     );
 
-    let mut card = sd_card.init_card().await.unwrap();
-    info!("Got card");
-    let capacity = card.capacity().await.unwrap();
-    info!("Card capacity: {} B", capacity);
+    loop {
+        match sd_card.init_card().await {
+            Ok(mut card) => {
+                info!("Detected new card");
+                match (async || {
+                    let capacity = card.capacity().await?;
+                    info!("Card capacity: {} B", capacity);
 
-    let mut first_sector = [Default::default(); 512];
-    card.read(0, &mut first_sector).await.unwrap();
-    let mbr: GenericMbr = transmute!(first_sector);
-    for partition in mbr
-        .partition_entries
-        .iter()
-        .filter(|entry| !entry.is_empty())
-    {
-        println!("Partition: {:?}", partition);
+                    let mut first_sector = [Default::default(); 512];
+                    card.read(0, &mut first_sector).await?;
+                    let mbr: GenericMbr = transmute!(first_sector);
+                    for partition in mbr
+                        .partition_entries
+                        .iter()
+                        .filter(|entry| !entry.is_empty())
+                    {
+                        println!("Partition: {:?}", partition);
 
-        let mut start_sector = [Default::default(); size_of::<Bpb>()];
-        let partition_start = partition.start_sector() as u64 * 512;
-        card.read(partition_start, &mut start_sector).await.unwrap();
-        let bpb: Bpb = transmute!(start_sector);
-        println!("BPB: {:#?}", bpb);
-        println!("FAT Type: {:#?}", bpb.fat_type());
-        let mut cluster_number = bpb.root_dir_start_cluster();
-        let mut entry_index_within_cluster = 0;
-        let mut parser = DirEntryParser::default();
-        let mut block_address = None;
-        let mut block = [Default::default(); BLOCK_SIZE];
-        loop {
-            if entry_index_within_cluster == bpb.bytes_per_cluster() / 32 {
-                let mut cluster_info_buffer = [Default::default(); Bpb::MAX_CLUSTER_INFO_SIZE];
-                let cluster_info = &mut cluster_info_buffer[..bpb.cluster_info_size()];
-                card.read(bpb.cluster_info_start(cluster_number), cluster_info)
-                    .await
-                    .unwrap();
-                match bpb.next_cluster_number(cluster_info).unwrap() {
-                    Some(next_cluster_number) => {
-                        cluster_number = next_cluster_number;
-                        entry_index_within_cluster = 0;
-                    }
-                    None => break,
-                }
-            }
-            let entry_address =
-                bpb.cluster_start(cluster_number) + entry_index_within_cluster as u64 * 32;
-            let required_block_address = entry_address / BLOCK_SIZE as u64 * BLOCK_SIZE as u64;
-            if !block_address.is_some_and(|block_address| block_address == required_block_address) {
-                card.read(partition_start + required_block_address, &mut block)
-                    .await
-                    .unwrap();
-                block_address = Some(required_block_address);
-            };
-            let start = entry_address as usize % BLOCK_SIZE;
-            let entry = block[start..start + 32].try_into().unwrap();
-            match parser.parse_entry(entry).unwrap() {
-                ParseEntryOutput::KeepReadingToParseCurrentEntry(new_parser) => {
-                    parser = new_parser;
-                }
-                ParseEntryOutput::KeepReadingToParseNextEntry(entry) => {
-                    parser = Default::default();
-                    if let Some(entry) = entry {
-                        // Max len of UTF-8 from UTF-16 of [u16; N] is [u8; N * 3]
-                        let name = String::<{ 255 * 3 }>::from_utf16(&entry.name).unwrap();
-                        if entry.volume_id {
-                            println!("Volume Label: {:?}", name);
-                        } else {
-                            println!("File: {:?}", name);
+                        let mut start_sector = [Default::default(); size_of::<Bpb>()];
+                        let partition_start = partition.start_sector() as u64 * 512;
+                        card.read(partition_start, &mut start_sector).await?;
+                        let bpb: Bpb = transmute!(start_sector);
+                        // println!("BPB: {:#?}", bpb);
+                        println!("FAT Type: {:#?}", bpb.fat_type());
+                        let mut cluster_number = bpb.root_dir_start_cluster();
+                        let mut entry_index_within_cluster = 0;
+                        let mut parser = DirEntryParser::default();
+                        let mut block_address = None;
+                        let mut block = [Default::default(); BLOCK_SIZE];
+                        loop {
+                            if entry_index_within_cluster == bpb.bytes_per_cluster() / 32 {
+                                let mut cluster_info_buffer =
+                                    [Default::default(); Bpb::MAX_CLUSTER_INFO_SIZE];
+                                let cluster_info =
+                                    &mut cluster_info_buffer[..bpb.cluster_info_size()];
+                                card.read(bpb.cluster_info_start(cluster_number), cluster_info)
+                                    .await?;
+                                match bpb.next_cluster_number(cluster_info).unwrap() {
+                                    Some(next_cluster_number) => {
+                                        cluster_number = next_cluster_number;
+                                        entry_index_within_cluster = 0;
+                                    }
+                                    None => break,
+                                }
+                            }
+                            let entry_address = bpb.cluster_start(cluster_number)
+                                + entry_index_within_cluster as u64 * 32;
+                            let required_block_address =
+                                entry_address / BLOCK_SIZE as u64 * BLOCK_SIZE as u64;
+                            if !block_address.is_some_and(|block_address| {
+                                block_address == required_block_address
+                            }) {
+                                card.read(partition_start + required_block_address, &mut block)
+                                    .await?;
+                                block_address = Some(required_block_address);
+                            };
+                            let start = entry_address as usize % BLOCK_SIZE;
+                            let entry = block[start..start + 32].try_into().unwrap();
+                            match parser.parse_entry(entry).unwrap() {
+                                ParseEntryOutput::KeepReadingToParseCurrentEntry(new_parser) => {
+                                    parser = new_parser;
+                                }
+                                ParseEntryOutput::KeepReadingToParseNextEntry(entry) => {
+                                    parser = Default::default();
+                                    if let Some(entry) = entry {
+                                        // Max len of UTF-8 from UTF-16 of [u16; N] is [u8; N * 3]
+                                        let name =
+                                            String::<{ 255 * 3 }>::from_utf16(&entry.name).unwrap();
+                                        if entry.volume_id {
+                                            println!("Volume Label: {:?}", name);
+                                        } else {
+                                            println!("File: {:?}", name);
+                                        }
+                                    }
+                                }
+                                ParseEntryOutput::DoneReadingEntries => {
+                                    break;
+                                }
+                            }
+                            entry_index_within_cluster += 1;
                         }
+                        info!("Done reading all entries of root dir");
+                    }
+                    Ok::<_, spi_sd_card::Error<_, _>>(())
+                })()
+                .await
+                {
+                    Ok(()) => loop {
+                        Timer::after(Duration::from_secs(1)).await;
+                        match card.get_status().await {
+                            Ok(status) => {
+                                if status.is_empty() {
+                                    info!("Card still present");
+                                } else {
+                                    println!("Card is present, but status error: {status:?}");
+                                }
+                            }
+                            Err(spi_sd_card::Error::SendStatusResponseTimeout) => {
+                                info!(
+                                    "Timeout after asking card to send status. Assuming card was removed."
+                                );
+                                break;
+                            }
+                            Err(e) => {
+                                println!("Error getting status: {e:#?}. Card may not be present");
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        println!("Error reading card: {e:#?}");
                     }
                 }
-                ParseEntryOutput::DoneReadingEntries => {
-                    break;
-                }
             }
-            entry_index_within_cluster += 1;
+            Err(e) => {
+                println!("Error getting card: {e:#?}. Maybe there is no card present");
+            }
         }
-        info!("Done reading all entries of root dir");
+        Timer::after(Duration::from_secs(1)).await;
     }
 }
