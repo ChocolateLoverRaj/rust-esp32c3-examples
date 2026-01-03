@@ -30,6 +30,7 @@
               rust-analyzer
               # Used by cargo run
               espflash
+              probe-rs-tools
             ];
           };
       }
