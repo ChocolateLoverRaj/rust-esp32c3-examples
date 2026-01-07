@@ -8,17 +8,12 @@ use embassy_futures::{
     select::{Either, select},
 };
 use embassy_time::{Duration, Instant, TICK_HZ, Timer};
-use embedded_io_async::Read;
+use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::{
-    dma::{DmaRxBuf, DmaTxBuf},
-    dma_buffers,
     interrupt::software::SoftwareInterruptControl,
     timer::timg::TimerGroup,
-    uart::{
-        Config, DataBits, RxError, StopBits, Uart,
-        uhci::{self, Uhci},
-    },
+    uart::{Config, DataBits, RxError, StopBits, Uart},
 };
 use esp_println as _;
 
@@ -35,123 +30,87 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
-    let baud_rate = 0_010_000;
-    let (mut uhci_rx, mut uhci_tx) = Uhci::new(
-        Uart::new(
-            peripherals.UART1,
-            Config::default()
-                .with_baudrate(baud_rate)
-                .with_data_bits(DataBits::_8)
-                .with_stop_bits(StopBits::_1),
-        )
-        .unwrap()
-        .with_rx(peripherals.GPIO20)
-        .with_tx(peripherals.GPIO21),
-        peripherals.UHCI0,
-        peripherals.DMA_CH0,
+    let baud_rate = 1_000_000;
+    let (mut uart_rx, mut uart_tx) = Uart::new(
+        peripherals.UART1,
+        Config::default()
+            .with_baudrate(baud_rate)
+            .with_data_bits(DataBits::_8)
+            .with_stop_bits(StopBits::_1),
     )
+    .unwrap()
+    .with_rx(peripherals.GPIO20)
+    .with_tx(peripherals.GPIO21)
     .into_async()
     .split();
-    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4 * 4092);
 
     join(
         async {
             info!("continuously sending data");
-            let mut tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
-            uhci_tx.apply_config(&uhci::TxConfig::default()).unwrap();
-            tx_buf.set_length(tx_buf.capacity());
-            let mut n = 0;
+            let mut buffer = [Default::default(); 128];
+            let mut n = u8::default();
             loop {
-                for byte in tx_buf.as_mut_slice() {
+                for byte in &mut buffer {
                     *byte = n;
                     n = n.wrapping_add(1);
                 }
-                let mut transfer = uhci_tx
-                    .write(tx_buf)
-                    .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
-                transfer.wait_for_done().await;
-                let (result, returned_uhci_tx, returned_tx_buf) = transfer.wait();
-                result.unwrap();
-                uhci_tx = returned_uhci_tx;
-                tx_buf = returned_tx_buf;
+                Write::write_all(&mut uart_tx, &buffer).await.unwrap();
             }
         },
         async {
-            let mut rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+            let mut buffer = [Default::default(); 128];
             loop {
                 info!("waiting for stream to start");
-                let mut expected_n = {
+                let mut last_byte = loop {
                     let mut buffer = Default::default();
-                    loop {
-                        match Read::read(&mut uhci_rx.uart_rx, core::slice::from_mut(&mut buffer))
-                            .await
-                        {
-                            Ok(_) | Err(RxError::FifoOverflowed) => break buffer,
-                            Err(e) => warn!("rx error: {}", e),
-                        }
+                    match Read::read(&mut uart_rx, core::slice::from_mut(&mut buffer)).await {
+                        Ok(_) | Err(RxError::FifoOverflowed) => break buffer,
+                        Err(e) => warn!("rx error: {}", e),
                     }
-                } + 1;
-
+                };
                 info!("stream started");
-                rx_buf.set_length(rx_buf.capacity());
-                uhci_rx
-                    .apply_config(
-                        &uhci::RxConfig::default().with_chunk_limit(rx_buf.len().min(4095) as u16),
-                    )
-                    .unwrap();
                 let mut before = Instant::now();
-                let mut total_missed_bytes = 0_u64;
                 loop {
                     let timeout = Duration::from_nanos({
-                        let ideal_time_s = (rx_buf.len() * 8) as f64
+                        let ideal_time_s = (buffer.len() * 8) as f64
                             / (baud_rate as f64 * (1.0 + 8.0 + 1.0) / 8.0);
                         // Allow up to double the expected time
                         let timeout_s = ideal_time_s * 2.0;
                         (timeout_s * 1e9) as u64
                     });
-                    // FIXME: Data between transfers might get lost
-                    let mut transfer = uhci_rx
-                        .read(rx_buf)
-                        .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
-                    if total_missed_bytes > 0 {
-                        // black_box(total_missed_bytes);
-                        warn!("missed {} bytes", total_missed_bytes);
-                        total_missed_bytes = 0;
-                    } else {
-                        info!("missed 0 bytes");
-                    }
-                    match select(transfer.wait_for_done(), Timer::after(timeout)).await {
-                        Either::First(()) => {
-                            let (result, returned_uhci_rx, returned_rx_buf) = transfer.wait();
-                            uhci_rx = returned_uhci_rx;
-                            rx_buf = returned_rx_buf;
-                            match result {
-                                Ok(()) => {
-                                    let now = Instant::now();
-                                    for byte in rx_buf.received_data().flatten() {
-                                        let missed_bytes = byte.wrapping_sub(expected_n);
-                                        total_missed_bytes += missed_bytes as u64;
-                                        expected_n = *byte + 1;
-                                    }
-                                    // info!(
-                                    //     "received data ({} B / (1s / {} * {}))",
-                                    //     rx_buf.number_of_received_bytes(),
-                                    //     TICK_HZ,
-                                    //     (now - before).as_ticks()
-                                    // );
-                                    before = now;
-                                    // Timer::after_nanos(1).await;
+                    match select(
+                        Read::read_exact(&mut uart_rx, &mut buffer),
+                        Timer::after(timeout),
+                    )
+                    .await
+                    {
+                        Either::First(result) => match result {
+                            Ok(()) => {
+                                let mut total_bytes_missed = 0;
+                                for byte in &buffer {
+                                    let expected_byte = last_byte.wrapping_add(1);
+                                    let bytes_missed = byte.wrapping_sub(expected_byte);
+                                    total_bytes_missed += bytes_missed;
+                                    last_byte = *byte;
                                 }
-                                Err(e) => {
-                                    error!("error receiving data: {}", e);
-                                    break;
+                                if total_bytes_missed > 0 {
+                                    warn!("missed {} bytes", total_bytes_missed);
                                 }
+                                let now = Instant::now();
+                                info!(
+                                    "received data ({} B / (1s / {} * {}))",
+                                    buffer.len(),
+                                    TICK_HZ,
+                                    (now - before).as_ticks()
+                                );
+                                before = now;
                             }
-                        }
+                            Err(e) => {
+                                error!("error receiving data: {}", e);
+                                break;
+                            }
+                        },
                         Either::Second(()) => {
-                            let (returned_uhci_rx, returned_rx_buf) = transfer.cancel();
-                            uhci_rx = returned_uhci_rx;
-                            rx_buf = returned_rx_buf;
                             error!("stopped receiving data");
                             break;
                         }
