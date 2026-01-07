@@ -11,8 +11,8 @@ use embassy_time::{Duration, Instant, TICK_HZ, Timer};
 use embedded_io_async::Read;
 use esp_backtrace as _;
 use esp_hal::{
-    dma::{DmaRxBuf, DmaTxBuf},
-    dma_buffers,
+    dma::{CHUNK_SIZE, DmaRxBuf, DmaRxStreamBuf, DmaTxBuf},
+    dma_circular_buffers,
     interrupt::software::SoftwareInterruptControl,
     timer::timg::TimerGroup,
     uart::{
@@ -52,7 +52,8 @@ async fn main(spawner: Spawner) {
     )
     .into_async()
     .split();
-    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4 * 4092);
+    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) =
+        dma_circular_buffers!(4 * CHUNK_SIZE);
 
     join(
         async {
@@ -77,85 +78,41 @@ async fn main(spawner: Spawner) {
             }
         },
         async {
-            let mut rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+            let rx_buffer_len = rx_buffer.len();
+            let mut rx_buf = DmaRxStreamBuf::new(rx_descriptors, rx_buffer).unwrap();
             loop {
-                info!("waiting for stream to start");
-                let mut expected_n = {
-                    let mut buffer = Default::default();
-                    loop {
-                        match Read::read(&mut uhci_rx.uart_rx, core::slice::from_mut(&mut buffer))
-                            .await
-                        {
-                            Ok(_) | Err(RxError::FifoOverflowed) => break buffer,
-                            Err(e) => warn!("rx error: {}", e),
-                        }
-                    }
-                } + 1;
-
-                info!("stream started");
-                rx_buf.set_length(rx_buf.capacity());
                 uhci_rx
                     .apply_config(
-                        &uhci::RxConfig::default().with_chunk_limit(rx_buf.len().min(4095) as u16),
+                        &uhci::RxConfig::default().with_chunk_limit(rx_buffer_len.min(4095) as u16),
                     )
                     .unwrap();
-                let mut before = Instant::now();
-                let mut total_missed_bytes = 0_u64;
+                let mut before;
                 loop {
-                    let timeout = Duration::from_nanos({
-                        let ideal_time_s = (rx_buf.len() * 8) as f64
-                            / (baud_rate as f64 * (1.0 + 8.0 + 1.0) / 8.0);
-                        // Allow up to double the expected time
-                        let timeout_s = ideal_time_s * 2.0;
-                        (timeout_s * 1e9) as u64
-                    });
-                    // FIXME: Data between transfers might get lost
                     let mut transfer = uhci_rx
                         .read(rx_buf)
                         .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
-                    if total_missed_bytes > 0 {
-                        // black_box(total_missed_bytes);
-                        warn!("missed {} bytes", total_missed_bytes);
-                        total_missed_bytes = 0;
-                    } else {
-                        info!("missed 0 bytes");
+                    loop {
+                        before = Instant::now();
+                        Timer::after(Duration::from_nanos({
+                            let wanted_bytes = CHUNK_SIZE;
+                            let delay_s = (wanted_bytes * 8) as f64
+                                / (baud_rate as f64 * (1.0 + 8.0 + 1.0) / 8.0);
+                            (delay_s * 1e9) as u64
+                        }))
+                        .await;
+                        if transfer.is_done() {
+                            todo!("We were too slow to read from the DMA");
+                        }
+                        let available_bytes = transfer.available_bytes();
+                        let now = Instant::now();
+                        info!(
+                            "Read {} B / (1s / {} * {})",
+                            available_bytes,
+                            TICK_HZ,
+                            (now - before).as_ticks()
+                        );
+                        transfer.consume(available_bytes);
                     }
-                    match select(transfer.wait_for_done(), Timer::after(timeout)).await {
-                        Either::First(()) => {
-                            let (result, returned_uhci_rx, returned_rx_buf) = transfer.wait();
-                            uhci_rx = returned_uhci_rx;
-                            rx_buf = returned_rx_buf;
-                            match result {
-                                Ok(()) => {
-                                    let now = Instant::now();
-                                    for byte in rx_buf.received_data().flatten() {
-                                        let missed_bytes = byte.wrapping_sub(expected_n);
-                                        total_missed_bytes += missed_bytes as u64;
-                                        expected_n = *byte + 1;
-                                    }
-                                    // info!(
-                                    //     "received data ({} B / (1s / {} * {}))",
-                                    //     rx_buf.number_of_received_bytes(),
-                                    //     TICK_HZ,
-                                    //     (now - before).as_ticks()
-                                    // );
-                                    before = now;
-                                    // Timer::after_nanos(1).await;
-                                }
-                                Err(e) => {
-                                    error!("error receiving data: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                        Either::Second(()) => {
-                            let (returned_uhci_rx, returned_rx_buf) = transfer.cancel();
-                            uhci_rx = returned_uhci_rx;
-                            rx_buf = returned_rx_buf;
-                            error!("stopped receiving data");
-                            break;
-                        }
-                    };
                 }
             }
         },

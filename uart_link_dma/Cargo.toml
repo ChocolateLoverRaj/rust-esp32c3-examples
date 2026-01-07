@@ -1,10 +1,10 @@
 [package]
-name = "uart_link"
+name = "uart_link_dma"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "uart_link"
+name = "uart_link_dma"
 path = "src/main.rs"
 test = false
 doctest = false
