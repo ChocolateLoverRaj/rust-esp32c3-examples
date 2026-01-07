@@ -1,22 +1,21 @@
 #![no_std]
 #![no_main]
 
+use core::future::pending;
+
 use defmt::{error, info, warn};
 use embassy_executor::Spawner;
-use embassy_futures::{
-    join::join,
-    select::{Either, select},
-};
-use embassy_time::{Duration, Instant, TICK_HZ, Timer};
-use embedded_io_async::Read;
+use embassy_futures::join::join;
+use embassy_time::{Instant, TICK_HZ};
+use embedded_io_async::Write;
 use esp_backtrace as _;
 use esp_hal::{
-    dma::{CHUNK_SIZE, DmaRxBuf, DmaRxStreamBuf, DmaTxBuf},
+    dma::{CHUNK_SIZE, DmaRxStreamBuf},
     dma_circular_buffers,
     interrupt::software::SoftwareInterruptControl,
     timer::timg::TimerGroup,
     uart::{
-        Config, DataBits, RxError, StopBits, Uart,
+        Config, DataBits, StopBits, Uart,
         uhci::{self, Uhci},
     },
 };
@@ -35,7 +34,7 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
-    let baud_rate = 0_010_000;
+    let baud_rate = 5_000_000;
     let (mut uhci_rx, mut uhci_tx) = Uhci::new(
         Uart::new(
             peripherals.UART1,
@@ -52,67 +51,64 @@ async fn main(spawner: Spawner) {
     )
     .into_async()
     .split();
-    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) =
-        dma_circular_buffers!(4 * CHUNK_SIZE);
+    let (rx_buffer, rx_descriptors, _tx_buffer, _tx_descriptors) =
+        dma_circular_buffers!(4 * CHUNK_SIZE, 0);
 
     join(
         async {
             info!("continuously sending data");
-            let mut tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
-            uhci_tx.apply_config(&uhci::TxConfig::default()).unwrap();
-            tx_buf.set_length(tx_buf.capacity());
-            let mut n = 0;
+            let mut n = 0_u8;
+            let mut buffer = [Default::default(); 128];
             loop {
-                for byte in tx_buf.as_mut_slice() {
+                for byte in &mut buffer {
                     *byte = n;
                     n = n.wrapping_add(1);
                 }
-                let mut transfer = uhci_tx
-                    .write(tx_buf)
-                    .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
-                transfer.wait_for_done().await;
-                let (result, returned_uhci_tx, returned_tx_buf) = transfer.wait();
-                result.unwrap();
-                uhci_tx = returned_uhci_tx;
-                tx_buf = returned_tx_buf;
+                Write::write_all(&mut uhci_tx.uart_tx, &buffer)
+                    .await
+                    .unwrap();
             }
         },
         async {
             let rx_buffer_len = rx_buffer.len();
-            let mut rx_buf = DmaRxStreamBuf::new(rx_descriptors, rx_buffer).unwrap();
+            let rx_buf = DmaRxStreamBuf::new(rx_descriptors, rx_buffer).unwrap();
+
+            uhci_rx
+                .apply_config(
+                    &uhci::RxConfig::default().with_chunk_limit(rx_buffer_len.min(4095) as u16),
+                )
+                .unwrap();
+            let mut transfer = uhci_rx
+                .read(rx_buf)
+                .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
+            let mut before = Instant::now();
+            let mut n = 0;
             loop {
-                uhci_rx
-                    .apply_config(
-                        &uhci::RxConfig::default().with_chunk_limit(rx_buffer_len.min(4095) as u16),
-                    )
-                    .unwrap();
-                let mut before;
-                loop {
-                    let mut transfer = uhci_rx
-                        .read(rx_buf)
-                        .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
-                    loop {
-                        before = Instant::now();
-                        Timer::after(Duration::from_nanos({
-                            let wanted_bytes = CHUNK_SIZE;
-                            let delay_s = (wanted_bytes * 8) as f64
-                                / (baud_rate as f64 * (1.0 + 8.0 + 1.0) / 8.0);
-                            (delay_s * 1e9) as u64
-                        }))
-                        .await;
-                        if transfer.is_done() {
-                            todo!("We were too slow to read from the DMA");
-                        }
-                        let available_bytes = transfer.available_bytes();
-                        let now = Instant::now();
-                        info!(
-                            "Read {} B / (1s / {} * {})",
-                            available_bytes,
-                            TICK_HZ,
-                            (now - before).as_ticks()
-                        );
-                        transfer.consume(available_bytes);
+                let data = transfer.peek();
+                if data.is_empty() {
+                    if transfer.is_done() {
+                        error!("transfer done");
+                        pending::<()>().await;
                     }
+                    embassy_futures::yield_now().await;
+                } else {
+                    for byte in data {
+                        let missed_bytes = byte.wrapping_sub(n);
+                        n = byte.wrapping_add(1);
+                        if missed_bytes > 0 {
+                            warn!("missed {} bytes", missed_bytes);
+                        }
+                    }
+                    let now = Instant::now();
+                    info!(
+                        "Read {} B / (1s / {} * {})",
+                        data.len(),
+                        TICK_HZ,
+                        (now - before).as_ticks()
+                    );
+                    before = now;
+                    let data_len = data.len();
+                    transfer.consume(data_len);
                 }
             }
         },
