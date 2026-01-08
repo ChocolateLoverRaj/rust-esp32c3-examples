@@ -9,8 +9,8 @@ use embassy_futures::join::join;
 use embassy_time::{Duration, Instant, TICK_HZ};
 use esp_backtrace as _;
 use esp_hal::{
-    dma::{CHUNK_SIZE, DmaRxStreamBuf},
-    dma_circular_buffers, dma_loop_buffer,
+    dma::CHUNK_SIZE,
+    dma_loop_buffer, dma_rx_stream_buffer,
     interrupt::software::SoftwareInterruptControl,
     timer::timg::TimerGroup,
     uart::{
@@ -51,9 +51,7 @@ async fn main(spawner: Spawner) {
     )
     .into_async()
     .split();
-    let (rx_buffer, rx_descriptors, _tx_buffer, _tx_descriptors) =
-        dma_circular_buffers!(4 * CHUNK_SIZE, 0);
-    let mut samples = Deque::<f64, 500>::new();
+    let mut samples = Deque::<f64, 250>::new();
     let mut average = 0f64;
 
     join(
@@ -74,12 +72,12 @@ async fn main(spawner: Spawner) {
             unreachable!();
         },
         async {
-            let rx_buffer_len = rx_buffer.len();
-            let rx_buf = DmaRxStreamBuf::new(rx_descriptors, rx_buffer).unwrap();
+            const RX_BUFFER_LEN: usize = 4 * CHUNK_SIZE;
+            let rx_buf = dma_rx_stream_buffer!(RX_BUFFER_LEN);
 
             uhci_rx
                 .apply_config(
-                    &uhci::RxConfig::default().with_chunk_limit(rx_buffer_len.min(4095) as u16),
+                    &uhci::RxConfig::default().with_chunk_limit(RX_BUFFER_LEN.min(4095) as u16),
                 )
                 .unwrap();
             let mut transfer = uhci_rx
