@@ -6,7 +6,7 @@ use core::future::pending;
 use defmt::{error, info, warn};
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
-use embassy_time::{Instant, TICK_HZ};
+use embassy_time::{Duration, Instant, TICK_HZ};
 use embedded_io_async::Write;
 use esp_backtrace as _;
 use esp_hal::{
@@ -20,6 +20,7 @@ use esp_hal::{
     },
 };
 use esp_println as _;
+use heapless::Deque;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -53,6 +54,8 @@ async fn main(spawner: Spawner) {
     .split();
     let (rx_buffer, rx_descriptors, _tx_buffer, _tx_descriptors) =
         dma_circular_buffers!(4 * CHUNK_SIZE, 0);
+    let mut samples = Deque::<f64, 500>::new();
+    let mut average = 0f64;
 
     join(
         async {
@@ -81,6 +84,7 @@ async fn main(spawner: Spawner) {
             let mut transfer = uhci_rx
                 .read(rx_buf)
                 .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
+            let mut last_printed = Instant::now();
             let mut before = Instant::now();
             let mut n = 0;
             loop {
@@ -92,21 +96,46 @@ async fn main(spawner: Spawner) {
                     }
                     embassy_futures::yield_now().await;
                 } else {
+                    let mut total_missed_bytes = 0_u64;
+                    let missed_calculation_start = Instant::now();
+                    // let mut bytes_missed = false;
                     for byte in data {
                         let missed_bytes = byte.wrapping_sub(n);
                         n = byte.wrapping_add(1);
-                        if missed_bytes > 0 {
-                            warn!("missed {} bytes", missed_bytes);
-                        }
+                        // if missed_bytes != 0 {
+                        //     bytes_missed = true;
+                        // }
+                        total_missed_bytes += missed_bytes as u64;
                     }
-                    let now = Instant::now();
+                    // if bytes_missed {
+                    //     warn!("bytes missed");
+                    // }
+                    if total_missed_bytes > 0 {
+                        warn!("missed {} bytes", total_missed_bytes);
+                    }
                     info!(
-                        "Read {} B / (1s / {} * {})",
-                        data.len(),
-                        TICK_HZ,
-                        (now - before).as_ticks()
+                        "took {} us to check for missed bytes",
+                        missed_calculation_start.elapsed().as_micros()
                     );
+                    if samples.is_full() {
+                        average *= samples.len() as f64;
+                        average -= samples.pop_back().unwrap();
+                        average /= samples.len() as f64;
+                    }
+
+                    let now = Instant::now();
+                    let sample = (data.len() as f64)
+                        / (1.0 / TICK_HZ as f64 * (now - before).as_ticks() as f64);
                     before = now;
+
+                    average *= samples.len() as f64;
+                    samples.push_front(sample).unwrap();
+                    average += sample;
+                    average /= samples.len() as f64;
+                    if last_printed.elapsed() >= Duration::from_secs(1) {
+                        info!("received {} B/s", average);
+                        last_printed = now;
+                    }
                     let data_len = data.len();
                     transfer.consume(data_len);
                 }
