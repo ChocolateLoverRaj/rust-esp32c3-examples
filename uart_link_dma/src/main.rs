@@ -7,11 +7,10 @@ use defmt::{error, info, warn};
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_time::{Duration, Instant, TICK_HZ};
-use embedded_io_async::Write;
 use esp_backtrace as _;
 use esp_hal::{
     dma::{CHUNK_SIZE, DmaRxStreamBuf},
-    dma_circular_buffers,
+    dma_circular_buffers, dma_loop_buffer,
     interrupt::software::SoftwareInterruptControl,
     timer::timg::TimerGroup,
     uart::{
@@ -36,7 +35,7 @@ async fn main(spawner: Spawner) {
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
     let baud_rate = 5_000_000;
-    let (mut uhci_rx, mut uhci_tx) = Uhci::new(
+    let (mut uhci_rx, uhci_tx) = Uhci::new(
         Uart::new(
             peripherals.UART1,
             Config::default()
@@ -61,16 +60,18 @@ async fn main(spawner: Spawner) {
         async {
             info!("continuously sending data");
             let mut n = 0_u8;
-            let mut buffer = [Default::default(); 128];
-            loop {
-                for byte in &mut buffer {
-                    *byte = n;
-                    n = n.wrapping_add(1);
-                }
-                Write::write_all(&mut uhci_tx.uart_tx, &buffer)
-                    .await
-                    .unwrap();
+            let mut loop_buffer = dma_loop_buffer!(4095 / 256 * 256);
+            for byte in loop_buffer.iter_mut() {
+                *byte = n;
+                n = n.wrapping_add(1);
             }
+            let mut transfer = uhci_tx
+                .write(loop_buffer)
+                .unwrap_or_else(|(e, _, _)| panic!("{e:?}"));
+            transfer.wait_for_done().await;
+            let (result, _, _) = transfer.wait();
+            result.unwrap();
+            unreachable!();
         },
         async {
             let rx_buffer_len = rx_buffer.len();
@@ -97,26 +98,14 @@ async fn main(spawner: Spawner) {
                     embassy_futures::yield_now().await;
                 } else {
                     let mut total_missed_bytes = 0_u64;
-                    let missed_calculation_start = Instant::now();
-                    // let mut bytes_missed = false;
                     for byte in data {
                         let missed_bytes = byte.wrapping_sub(n);
                         n = byte.wrapping_add(1);
-                        // if missed_bytes != 0 {
-                        //     bytes_missed = true;
-                        // }
                         total_missed_bytes += missed_bytes as u64;
                     }
-                    // if bytes_missed {
-                    //     warn!("bytes missed");
-                    // }
                     if total_missed_bytes > 0 {
                         warn!("missed {} bytes", total_missed_bytes);
                     }
-                    info!(
-                        "took {} us to check for missed bytes",
-                        missed_calculation_start.elapsed().as_micros()
-                    );
                     if samples.is_full() {
                         average *= samples.len() as f64;
                         average -= samples.pop_back().unwrap();
