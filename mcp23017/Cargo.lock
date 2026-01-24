@@ -59,6 +59,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "controller"
+version = "0.1.0"
+dependencies = [
+ "defmt 1.0.1",
+ "embassy-futures",
+ "embassy-sync 0.7.2",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "mcp23017_common",
+]
+
+[[package]]
 name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -366,14 +378,12 @@ dependencies = [
 [[package]]
 name = "embedded-hal"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+source = "git+https://github.com/rust-embedded/embedded-hal#b8fd20d94671f8165a7129649867199197efd058"
 
 [[package]]
 name = "embedded-hal-async"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c4c685bbef7fe13c3c6dd4da26841ed3980ef33e841cddfa15ce8a8fb3f1884"
+source = "git+https://github.com/rust-embedded/embedded-hal#b8fd20d94671f8165a7129649867199197efd058"
 dependencies = [
  "embedded-hal 1.0.0",
 ]
@@ -963,6 +973,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp23017_common"
+version = "0.1.0"
+dependencies = [
+ "strum",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -987,11 +1004,14 @@ checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 name = "no_std_hello_world"
 version = "0.1.0"
 dependencies = [
+ "controller",
  "defmt 1.0.1",
  "embassy-embedded-hal",
  "embassy-executor",
+ "embassy-futures",
  "embassy-sync 0.7.2",
  "embassy-time",
+ "embedded-hal 1.0.0",
  "embedded-hal-async",
  "esp-backtrace",
  "esp-bootloader-esp-idf",

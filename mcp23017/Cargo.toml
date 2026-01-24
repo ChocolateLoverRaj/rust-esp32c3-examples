@@ -11,11 +11,14 @@ doctest = false
 bench = false
 
 [dependencies]
+controller = { version = "0.1.0", path = "../../mcp23017/controller", features = ["defmt"] }
 defmt = "1.0.1"
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
 embassy-executor = "0.9.1"
+embassy-futures = { version = "0.1.2", features = ["defmt"] }
 embassy-sync = { version = "0.7.2", features = ["defmt"] }
 embassy-time = { version = "0.5.0", features = ["defmt"] }
+embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 esp-backtrace = { version = "0.18.1", features = ["panic-handler", "println"] }
 esp-bootloader-esp-idf = "0.4.0"
@@ -23,7 +26,9 @@ esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
 mcp23017-tp = { version = "0.1.1", features = ["async", "pinmode"] }
-pure_rotary_encoder = { version = "0.1.0", path = "../../pure_rotary_encoder", features = ["defmt"] }
+pure_rotary_encoder = { version = "0.1.0", path = "../../pure_rotary_encoder", features = [
+    "defmt",
+] }
 
 [features]
 default = ["esp32c3"]
@@ -34,3 +39,7 @@ esp32c3 = [
     "esp-println/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
 ]
+
+[patch.crates-io]
+embedded-hal = { git = "https://github.com/rust-embedded/embedded-hal" }
+embedded-hal-async = { git = "https://github.com/rust-embedded/embedded-hal" }
