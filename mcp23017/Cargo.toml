@@ -11,7 +11,9 @@ doctest = false
 bench = false
 
 [dependencies]
-controller = { version = "0.1.0", path = "../../mcp23017/controller", features = ["defmt"] }
+mcp23017_controller = { version = "0.1.0", path = "../../mcp23017/controller", features = [
+    "defmt",
+] }
 defmt = "1.0.1"
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }
 embassy-executor = "0.9.1"
@@ -43,3 +45,5 @@ esp32c3 = [
 [patch.crates-io]
 embedded-hal = { git = "https://github.com/rust-embedded/embedded-hal" }
 embedded-hal-async = { git = "https://github.com/rust-embedded/embedded-hal" }
+embassy-embedded-hal = { git = "https://github.com/ChocolateLoverRaj/embassy", branch = "digital-adapter-contribute" }
+embassy-sync = { git = "https://github.com/ChocolateLoverRaj/embassy", branch = "digital-adapter-contribute" }
