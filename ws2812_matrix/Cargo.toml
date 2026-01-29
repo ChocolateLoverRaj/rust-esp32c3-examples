@@ -22,7 +22,6 @@ esp-hal-smartled = { version = "0.17.0", features = ["defmt"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
 smart-leds = "0.4.0"
-smart-leds-matrix = "0.2.0"
 
 [features]
 default = ["esp32c3"]
@@ -33,4 +32,12 @@ esp32c3 = [
     "esp-println/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
     "esp-hal-smartled/esp32c3",
+]
+esp32 = [
+    "esp-hal/esp32",
+    "esp-rtos/esp32",
+    "esp-backtrace/esp32",
+    "esp-println/esp32",
+    "esp-bootloader-esp-idf/esp32",
+    "esp-hal-smartled/esp32",
 ]
