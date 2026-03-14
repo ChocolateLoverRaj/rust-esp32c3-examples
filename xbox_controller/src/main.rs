@@ -146,6 +146,8 @@ async fn main(spawner: Spawner) {
     let stack = trouble_host::new(controller, &mut resources)
         .set_random_address(our_address)
         .set_random_generator_seed(&mut trng);
+    // We won't have man-in-the-middle attack protection because we cannot confirm a PIN with the
+    // controller. This is expected.
     stack.set_io_capabilities(trouble_host::IoCapabilities::NoInputNoOutput);
     let mut data_buffer = [0; 512];
     let stored_bond_information = map
@@ -178,6 +180,7 @@ async fn main(spawner: Spawner) {
     let _ = join(runner.run(), async {
         info!("Connecting");
         let conn = central.connect(&config).await.unwrap();
+        // In case the controller no longer has the previous bond stored, always allow creating a new bond.
         conn.set_bondable(true).unwrap();
         info!("Connected. Requestin pairing...");
         conn.request_security().unwrap();
@@ -299,43 +302,6 @@ async fn main(spawner: Spawner) {
                         )
                     };
 
-                    // let report_characteristic: Characteristic<[u8; 9]> = client
-                    //     .characteristic_by_uuid(&hid_service, &Uuid::new_short(0x2A4D))
-                    //     .await
-                    //     .unwrap();
-
-                    // let characteristics = client.characteristics::<10>(&hid_service).await.unwrap();
-                    // info!(
-                    //     "found {} characteristics in the HID service.",
-                    //     characteristics.len(),
-                    // );
-                    // for (i, characteristic) in characteristics.iter().enumerate() {
-                    //     info!(
-                    //         "{} {} {} {} {}",
-                    //         i,
-                    //         characteristic.uuid,
-                    //         characteristic.handle,
-                    //         characteristic.cccd_handle,
-                    //         characteristic.props
-                    //     );
-                    //     if let Ok(descriptor) = client
-                    //         .descriptor_by_uuid::<_, [u8; 2]>(
-                    //             characteristic,
-                    //             &Uuid::new_short(0x2908),
-                    //         )
-                    //         .await
-                    //     {
-                    //         let mut buffer = [0; 2];
-                    //         let bytes_read = client
-                    //             .read_descriptor(&descriptor, &mut buffer)
-                    //             .await
-                    //             .unwrap();
-                    //         let descriptor = &buffer[..bytes_read];
-                    //         info!("Descriptor: {:X}", descriptor);
-                    //     }
-                    // }
-                    // let rumble_characteristic = &characteristics[4];
-
                     info!("Subscribing to report characteristic");
                     let mut listener = client
                         .subscribe(&input_report_characteristic, false)
@@ -363,8 +329,8 @@ async fn main(spawner: Spawner) {
                                 // We will only enable the small motor, at 10%
                                 0, 0, 0, 10,
                                 // This is the duration. The number is multiplied by 10ms
-                                // We set it to 2s
-                                200,
+                                // We set it to 1s
+                                100,
                                 // This is the delay. The number is multiplied by 10ms
                                 // Set to no delay
                                 0,
@@ -382,7 +348,36 @@ async fn main(spawner: Spawner) {
                     // Watch for inputs and print them
                     loop {
                         let notification = listener.next().await;
-                        info!("Got notification: {:X}", notification.as_ref());
+                        let data = notification.as_ref();
+                        info!("Got notification: {:X}", data);
+
+                        // This has hardcoded data format, but it can be parsed from the
+                        // report descriptor for a more proper implementation
+
+                        // Do small rumble if A is pressed
+                        let a_pressed = data[13] & (1 << 0) != 0;
+                        // Do a large rumble if D pad is pressed
+                        let d_pad_up = data[12] == 1;
+                        // Rumble the left and right triggers if they are pressed above a certain threshold
+                        let rumble_left_trigger = data[9] >= 1;
+                        let rumble_right_trigger = data[11] >= 1;
+
+                        client
+                            .write_characteristic(
+                                &output_report_characteristic,
+                                &[
+                                    0b1111,
+                                    if rumble_left_trigger { 25 } else { 0 },
+                                    if rumble_right_trigger { 25 } else { 0 },
+                                    if d_pad_up { 25 } else { 0 },
+                                    if a_pressed { 25 } else { 0 },
+                                    200,
+                                    0,
+                                    0,
+                                ],
+                            )
+                            .await
+                            .unwrap();
                     }
                 })
                 .await;
