@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "no_std_hello_world"
+name = "xbox_controller"
 path = "src/main.rs"
 test = false
 doctest = false
