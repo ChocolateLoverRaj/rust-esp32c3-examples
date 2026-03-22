@@ -548,6 +548,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "embassy-sync"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bbd85cf5a5ae56bdf26f618364af642d1d0a4e245cdd75cd9aabda382f65a81"
+dependencies = [
+ "cfg-if",
+ "critical-section",
+ "embedded-io-async 0.7.0",
+ "futures-core",
+ "futures-sink",
+ "heapless 0.9.2",
+]
+
+[[package]]
 name = "embassy-time"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -581,6 +595,26 @@ checksum = "80e2ee86063bd028a420a5fb5898c18c87a8898026da1d4c852af2c443d0a454"
 dependencies = [
  "embassy-executor-timer-queue",
  "heapless 0.8.0",
+]
+
+[[package]]
+name = "embassy-usb-driver"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17119855ccc2d1f7470a39756b12068454ae27a3eabb037d940b5c03d9c77b7a"
+dependencies = [
+ "embedded-io-async 0.6.1",
+]
+
+[[package]]
+name = "embassy-usb-synopsys-otg"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbe46f4083109c7ea12a03ca61095d1e87c76fec52c7ca9ee06a42935606dacb"
+dependencies = [
+ "critical-section",
+ "embassy-sync 0.8.0",
+ "embassy-usb-driver",
 ]
 
 [[package]]
@@ -736,6 +770,7 @@ dependencies = [
  "esp-println",
  "heapless 0.9.2",
  "riscv",
+ "semihosting",
  "xtensa-lx 0.13.0 (git+https://github.com/esp-rs/esp-hal)",
 ]
 
@@ -796,6 +831,8 @@ dependencies = [
  "embassy-embedded-hal",
  "embassy-futures",
  "embassy-sync 0.7.2",
+ "embassy-usb-driver",
+ "embassy-usb-synopsys-otg",
  "embedded-can",
  "embedded-hal 1.0.0",
  "embedded-hal-async",
@@ -810,6 +847,7 @@ dependencies = [
  "esp-riscv-rt",
  "esp-rom-sys",
  "esp-sync 0.1.1 (git+https://github.com/esp-rs/esp-hal)",
+ "esp-synopsys-usb-otg",
  "esp32",
  "esp32c2",
  "esp32c3",
@@ -837,6 +875,7 @@ version = "0.21.0"
 source = "git+https://github.com/esp-rs/esp-hal#94ad74c69ccda9e84272fe4436c69400ce6f09fe"
 dependencies = [
  "document-features",
+ "object",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
@@ -868,6 +907,7 @@ dependencies = [
  "esp-metadata-generated 0.3.0 (git+https://github.com/esp-rs/esp-hal)",
  "esp-sync 0.1.1 (git+https://github.com/esp-rs/esp-hal)",
  "esp-wifi-sys-esp32c3",
+ "esp-wifi-sys-esp32s3",
 ]
 
 [[package]]
@@ -907,13 +947,16 @@ dependencies = [
  "esp-radio-rtos-driver",
  "esp-sync 0.1.1 (git+https://github.com/esp-rs/esp-hal)",
  "esp-wifi-sys-esp32c3",
+ "esp-wifi-sys-esp32s3",
  "esp32c3",
+ "esp32s3",
  "heapless 0.9.2",
  "instability",
  "num-derive",
  "num-traits",
  "portable-atomic",
  "portable_atomic_enum",
+ "xtensa-lx-rt",
 ]
 
 [[package]]
@@ -1014,7 +1057,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp-synopsys-usb-otg"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8938451cb19032f13365328ea66ab38c8d16deecdf322067442297110eb74468"
+dependencies = [
+ "critical-section",
+ "embedded-hal 0.2.7",
+ "ral-registers",
+ "usb-device",
+ "vcell",
+]
+
+[[package]]
 name = "esp-wifi-sys-esp32c3"
+version = "0.1.0"
+source = "git+https://github.com/esp-rs/esp-wifi-sys?rev=e7b72a1#e7b72a199147c1dc8beb47a0b01938791e866c98"
+
+[[package]]
+name = "esp-wifi-sys-esp32s3"
 version = "0.1.0"
 source = "git+https://github.com/esp-rs/esp-wifi-sys?rev=e7b72a1#e7b72a199147c1dc8beb47a0b01938791e866c98"
 
@@ -1448,6 +1509,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "object"
+version = "0.37.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1588,6 +1658,12 @@ checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "ral-registers"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46b71a9d9206e8b46714c74255adcaea8b11e0350c1d8456165073c3f75fc81a"
 
 [[package]]
 name = "rand"
@@ -1731,6 +1807,12 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "semihosting"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8e4abf97879f4e80db69a9fba7bd64998e9bdad25f58ef045a778e191172fd4"
 
 [[package]]
 name = "semver"
@@ -2030,6 +2112,16 @@ name = "unsafe-libyaml"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
+
+[[package]]
+name = "usb-device"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98816b1accafbb09085168b90f27e93d790b4bfa19d883466b5e53315b5f06a6"
+dependencies = [
+ "heapless 0.8.0",
+ "portable-atomic",
+]
 
 [[package]]
 name = "uuid"

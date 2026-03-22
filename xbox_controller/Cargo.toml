@@ -58,3 +58,13 @@ esp32c3 = [
     "esp-alloc/esp32c3",
     "esp-storage/esp32c3",
 ]
+esp32s3 = [
+    "esp-hal/esp32s3",
+    "esp-rtos/esp32s3",
+    "esp-backtrace/esp32s3",
+    "esp-println/esp32s3",
+    "esp-bootloader-esp-idf/esp32s3",
+    "esp-radio/esp32s3",
+    "esp-alloc/esp32s3",
+    "esp-storage/esp32s3",
+]
