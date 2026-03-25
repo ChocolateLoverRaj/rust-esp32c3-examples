@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-mod queue;
 
 use core::cmp::min;
 
@@ -47,6 +46,7 @@ async fn main(spawner: Spawner) {
     let software_interrupt = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt.software_interrupt0);
 
+    // Set up DMA buffers for SPI, which is how we will access the SD card
     let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(1024);
     let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
     let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
@@ -77,6 +77,8 @@ async fn main(spawner: Spawner) {
     let capacity = card.capacity().await.unwrap();
     info!("Card capacity: {} B", capacity);
 
+    // Read the MBR and find the first partition
+    // We will assume that it is a FAT partition
     let mut first_sector = [Default::default(); 512];
     card.read(0, &mut first_sector).await.unwrap();
     let mbr: GenericMbr = transmute!(first_sector);
@@ -88,6 +90,7 @@ async fn main(spawner: Spawner) {
 
     println!("Partition: {:?}", partition);
 
+    // Iterate through all files in the root dir to find the "audio.wav" file
     let mut start_sector = [Default::default(); size_of::<Bpb>()];
     let partition_start = partition.start_sector() as u64 * 512;
     card.read(partition_start, &mut start_sector).await.unwrap();
@@ -148,7 +151,8 @@ async fn main(spawner: Spawner) {
     }
     .unwrap();
 
-    let mut get_meta_data = GetMetaDataForI2s::new();
+    // Read the metadata of the wav file
+    let mut get_meta_data = GetMetaDataForI2s::default();
     let meta_data = loop {
         let output = get_meta_data.output();
         match output {
@@ -196,6 +200,7 @@ async fn main(spawner: Spawner) {
     .unwrap();
     println!("audio.wav: {meta_data:#?}");
 
+    // Set up the I2S
     let i2s = I2s::new(
         peripherals.I2S0,
         peripherals.DMA_CH1,
@@ -219,6 +224,7 @@ async fn main(spawner: Spawner) {
         .build(tx_descriptors);
     let mut transfer = tx.write_dma_circular_async(tx_buffer).unwrap();
 
+    // Read the actual wav data from the file and send it to the I2S
     let mut stream = StreamFile::new(&bpb, wave_file_size, wave_file_start_cluster_number);
     loop {
         match stream.output().unwrap() {
@@ -237,6 +243,7 @@ async fn main(spawner: Spawner) {
                     .unwrap();
 
                     for byte in &mut buffer[..(bytes_to_read / 2) as usize] {
+                        // Reduce the volume by 1/4
                         *byte /= 4;
                     }
 

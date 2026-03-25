@@ -21,10 +21,10 @@ esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
 heapless = { version = "0.9.2", features = ["defmt"] }
-pure_fat = { version = "0.1.0", path = "../../pure_fat" }
-pure_mbr = { version = "0.1.0", path = "../../pure_mbr" }
-pure_wav = { version = "0.1.0", path = "../../pure_wav", features = ["defmt"] }
-spi_sd_card = { version = "0.1.0", path = "../../spi_sd_card", features = ["defmt", "chrono", "embassy-sync"] }
+pure_fat = { version = "1.0.0" }
+pure_mbr = { version = "1.0.0" }
+pure_wav = { version = "1.0.0" }
+spi_sd_card = { git = "https://github.com/ChocolateLoverRaj/spi_sd_card", features = ["defmt", "chrono", "embassy-sync"] }
 zerocopy = "0.8.31"
 
 [features]
@@ -38,4 +38,4 @@ esp32c3 = [
 ]
 
 [patch.crates-io]
-crc = { path = "../../crc-rs" }
+crc = { git = "https://github.com/mrhooray/crc-rs" }

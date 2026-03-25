@@ -1,6 +1,7 @@
 # IR Emitter and Receiver
 Use an ESP32-C3 to check if an IR receiver is receiving light from an IR emitter
-![Emitter and Receiver](https://github.com/ChocolateLoverRaj/rust-esp32c3-ir-led/blob/main/Picture.png?raw=true)
+
+![Emitter and Receiver](./Picture.png)
 
 ## Materials Needed
 - Breadboard
@@ -12,4 +13,3 @@ Use an ESP32-C3 to check if an IR receiver is receiving light from an IR emitter
 ## Resources
 - https://www.instructables.com/DIY-Photogate/
 - https://tutorials-raspberrypi.com/photoresistor-brightness-light-sensor-with-raspberry-pi/
-

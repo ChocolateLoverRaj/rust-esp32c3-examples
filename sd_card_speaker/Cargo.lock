@@ -70,6 +70,7 @@ dependencies = [
 [[package]]
 name = "crc"
 version = "3.4.0"
+source = "git+https://github.com/mrhooray/crc-rs#1894aa9f184d44cf1226aeb3048a3e91fc1b8df4"
 dependencies = [
  "crc-catalog",
 ]
@@ -1039,7 +1040,9 @@ dependencies = [
 
 [[package]]
 name = "pure_fat"
-version = "0.1.0"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1569732b86cc00f9972f0b9213a8893a9786eda78b69e278daf288384c97cda4"
 dependencies = [
  "bitflags 2.10.0",
  "heapless 0.9.2",
@@ -1048,16 +1051,19 @@ dependencies = [
 
 [[package]]
 name = "pure_mbr"
-version = "0.1.0"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38672c0fedc6ce266f61d5d0a6d70c5ae7dc49b55ef1b32b5cc54091c2b08102"
 dependencies = [
  "zerocopy",
 ]
 
 [[package]]
 name = "pure_wav"
-version = "0.1.0"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c3ffe8e9b01707306cbd58413322565fecdb790b9d96e6669775c10840e5ed9"
 dependencies = [
- "defmt 1.0.1",
  "zerocopy",
 ]
 
@@ -1235,7 +1241,8 @@ checksum = "a0f368519fc6c85fc1afdb769fb5a51123f6158013e143656e25a3485a0d401c"
 
 [[package]]
 name = "spi_sd_card"
-version = "0.1.0"
+version = "1.0.0"
+source = "git+https://github.com/ChocolateLoverRaj/spi_sd_card#b6ca504e59fc4c57f537d263e0ff7c70f143f21e"
 dependencies = [
  "bitfield",
  "bitflags 2.10.0",

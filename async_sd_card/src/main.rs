@@ -110,9 +110,7 @@ async fn main(spawner: Spawner) {
                                 + entry_index_within_cluster as u64 * 32;
                             let required_block_address =
                                 entry_address / BLOCK_SIZE as u64 * BLOCK_SIZE as u64;
-                            if !block_address.is_some_and(|block_address| {
-                                block_address == required_block_address
-                            }) {
+                            if block_address != Some(required_block_address) {
                                 card.read(partition_start + required_block_address, &mut block)
                                     .await?;
                                 block_address = Some(required_block_address);

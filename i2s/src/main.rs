@@ -29,7 +29,7 @@ async fn main(spawner: Spawner) {
 
     info!("Hello from a Rust no_std environment with esp_rtos (basically embassy for ESP32).");
 
-    let wav_file = include_bytes!("../test.wav");
+    let wav_file = include_bytes!("../audio.wav");
 
     let i2s = I2s::new(peripherals.I2S0, peripherals.DMA_CH0, Config::new_tdm_msb())
         .unwrap()

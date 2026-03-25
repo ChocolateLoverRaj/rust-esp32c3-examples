@@ -4,6 +4,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
+    esp-rs.url = "github:aljazerzen/nixpkgs-esp-dev-rust";
   };
 
   outputs =
@@ -11,12 +12,15 @@
       nixpkgs,
       rust-overlay,
       flake-utils,
+      esp-rs,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
+        overlays = [
+          (import rust-overlay)
+        ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
