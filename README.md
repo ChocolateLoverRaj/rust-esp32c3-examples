@@ -3,7 +3,7 @@ Examples with wiring diagrams for using some sensors with ESP32-C3, programmed w
 ![ESP32-C3 with Rust Logo](./ESP32-C3.png)
 
 ## Materials Needed
-- ESP32-C3 (I bought [this one](https://www.aliexpress.us/item/3256805941172619.html) and [this one](https://www.aliexpress.us/item/3256805870348476.html))
+- ESP32-C3 (I bought [this one from AliExpress](https://www.aliexpress.us/item/3256805941172619.html), and I recommend buying it from "TENSTAR ROBOT")
 - USB Cable to connect the ESP32-C3 to your computer. You can use a USB-A to USB-C cable or a USB-C to USB-C cable, they both work.
 - Project-specific materials
 
