@@ -6,7 +6,7 @@ use embassy_executor::Spawner;
 use esp_backtrace as _;
 use esp_hal::{
     dma_circular_buffers,
-    i2s::master::{Config, DataFormat, I2s, UnitConfig},
+    i2s::master::{Channels, Config, DataFormat, I2s, UnitConfig},
     interrupt::software::SoftwareInterruptControl,
     time::Rate,
     timer::timg::TimerGroup,
@@ -38,9 +38,9 @@ async fn main(spawner: Spawner) {
         dma_circular_buffers!(0, 100 * 1024);
     let mut tx = Some(
         i2s.i2s_tx
-            .with_bclk(peripherals.GPIO2)
-            .with_dout(peripherals.GPIO1)
-            .with_ws(peripherals.GPIO3)
+            .with_bclk(peripherals.GPIO10)
+            .with_dout(peripherals.GPIO20)
+            .with_ws(peripherals.GPIO21)
             .build(tx_descriptors),
     );
     let mut tx_buffer = Some(tx_buffer);
@@ -116,6 +116,11 @@ async fn main(spawner: Spawner) {
                             .with_sample_rate(Rate::from_hz(samples_per_sec))
                             .with_data_format(match bits_per_sample {
                                 16 => DataFormat::Data16Channel16,
+                                _ => todo!(),
+                            })
+                            .with_channels(match u16::from_le_bytes(data.n_channels) {
+                                1 => Channels::MONO,
+                                2 => Channels::STEREO,
                                 _ => todo!(),
                             }),
                     )

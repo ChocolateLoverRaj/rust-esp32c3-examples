@@ -43,15 +43,15 @@ async fn main(spawner: Spawner) {
     let spi_bus = Mutex::<CriticalSectionRawMutex, _>::new(
         Spi::new(peripherals.SPI2, Config::default())
             .unwrap()
-            .with_sck(peripherals.GPIO7)
-            .with_mosi(peripherals.GPIO6)
-            .with_miso(peripherals.GPIO5)
+            .with_sck(peripherals.GPIO4)
+            .with_mosi(peripherals.GPIO3)
+            .with_miso(peripherals.GPIO2)
             .with_dma(peripherals.DMA_CH0)
             .with_buffers(dma_rx_buf, dma_tx_buf)
             .into_async(),
     );
 
-    let cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());
+    let cs = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
 
     let mut sd_card = SpiSdCard::new(
         EmbassySharedSpiBus::new(&spi_bus),

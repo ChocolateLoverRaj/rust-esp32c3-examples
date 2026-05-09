@@ -37,10 +37,10 @@ async fn main(spawner: Spawner) {
                 Config::default().with_frequency(Rate::from_khz(400)),
             )
             .unwrap()
-            .with_sck(peripherals.GPIO7)
-            .with_mosi(peripherals.GPIO6)
-            .with_miso(peripherals.GPIO5),
-            Output::new(peripherals.GPIO0, Level::High, OutputConfig::default()),
+            .with_sck(peripherals.GPIO4)
+            .with_mosi(peripherals.GPIO3)
+            .with_miso(peripherals.GPIO2),
+            Output::new(peripherals.GPIO1, Level::High, OutputConfig::default()),
             Delay::new(),
         )
         .unwrap(),

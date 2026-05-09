@@ -14,7 +14,7 @@ use esp_hal::{
     gpio::{Level, Output, OutputConfig},
     i2s::{
         self,
-        master::{DataFormat, I2s},
+        master::{Channels, DataFormat, I2s},
     },
     interrupt::software::SoftwareInterruptControl,
     spi::master::{Config, Spi},
@@ -54,15 +54,15 @@ async fn main(spawner: Spawner) {
     let spi_bus = Mutex::<CriticalSectionRawMutex, _>::new(
         Spi::new(peripherals.SPI2, Config::default())
             .unwrap()
-            .with_sck(peripherals.GPIO7)
-            .with_mosi(peripherals.GPIO6)
-            .with_miso(peripherals.GPIO5)
+            .with_sck(peripherals.GPIO4)
+            .with_mosi(peripherals.GPIO3)
+            .with_miso(peripherals.GPIO2)
             .with_dma(peripherals.DMA_CH0)
             .with_buffers(dma_rx_buf, dma_tx_buf)
             .into_async(),
     );
 
-    let cs = Output::new(peripherals.GPIO0, Level::High, OutputConfig::default());
+    let cs = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
 
     let mut sd_card = SpiSdCard::new(
         EmbassySharedSpiBus::new(&spi_bus),
@@ -204,23 +204,28 @@ async fn main(spawner: Spawner) {
     let i2s = I2s::new(
         peripherals.I2S0,
         peripherals.DMA_CH1,
-        i2s::master::Config::new_tdm_msb()
+        i2s::master::Config::new_tdm_philips()
             .with_sample_rate(Rate::from_hz(meta_data.fmt_data.n_samples_per_sec.get()))
             .with_data_format(match meta_data.fmt_data.w_bits_per_sample.get() {
                 16 => DataFormat::Data16Channel16,
+                _ => todo!(),
+            })
+            .with_channels(match meta_data.fmt_data.n_channels.get() {
+                1 => Channels::MONO,
+                2 => Channels::STEREO,
                 _ => todo!(),
             }),
     )
     .unwrap()
     .into_async();
     let (_rx_buffer, _rx_descriptors, tx_buffer, tx_descriptors) =
-        dma_circular_buffers!(0, 10 * 1024);
+        dma_circular_buffers!(0, 4092 * 4);
     let tx_buffer = tx_buffer;
     let tx = i2s
         .i2s_tx
-        .with_bclk(peripherals.GPIO2)
-        .with_dout(peripherals.GPIO1)
-        .with_ws(peripherals.GPIO3)
+        .with_bclk(peripherals.GPIO10)
+        .with_dout(peripherals.GPIO20)
+        .with_ws(peripherals.GPIO21)
         .build(tx_descriptors);
     let mut transfer = tx.write_dma_circular_async(tx_buffer).unwrap();
 
@@ -243,8 +248,8 @@ async fn main(spawner: Spawner) {
                     .unwrap();
 
                     for byte in &mut buffer[..(bytes_to_read / 2) as usize] {
-                        // Reduce the volume by 1/4
-                        *byte /= 4;
+                        // Reduce the volume
+                        *byte /= 32;
                     }
 
                     transfer.push(buffer.as_bytes()).await.unwrap();
