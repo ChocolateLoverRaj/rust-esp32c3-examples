@@ -1,0 +1,42 @@
+[package]
+name = "sd_card_experiments"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "sd_card_experiments"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+crc = "3.4.0"
+defmt = "1.0.1"
+embassy-embedded-hal = "0.5.0"
+embassy-executor = "0.9.1"
+embassy-sync = { version = "0.7.2", features = ["defmt"] }
+embassy-time = { version = "0.5.0", features = ["defmt"] }
+embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
+embedded-hal-bus = "0.3.0"
+embedded-timers = "0.4.0"
+esp-backtrace = { version = "0.18.1", features = ["panic-handler", "println"] }
+esp-bootloader-esp-idf = "0.4.0"
+esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
+esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
+esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
+spi_sd_card = { version = "1.0.0", path = "../../spi_sd_card" }
+
+[features]
+default = ["esp32c3"]
+esp32c3 = [
+    "esp-hal/esp32c3",
+    "esp-rtos/esp32c3",
+    "esp-backtrace/esp32c3",
+    "esp-println/esp32c3",
+    "esp-bootloader-esp-idf/esp32c3",
+]
+
+[patch.crates-io]
+crc = { git = "https://github.com/mrhooray/crc-rs" }

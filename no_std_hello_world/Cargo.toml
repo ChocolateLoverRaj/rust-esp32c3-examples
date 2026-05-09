@@ -1,0 +1,37 @@
+[package]
+name = "no_std_hello_world"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "no_std_hello_world"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+defmt = "1.0.1"
+embassy-executor = "0.10.0"
+esp-backtrace = { version = "0.19.0", features = ["panic-handler", "println"] }
+esp-bootloader-esp-idf = "0.5.0"
+esp-hal = { version = "1.1.0", features = ["defmt", "unstable"] }
+esp-println = { version = "0.17.0", features = ["defmt-espflash"] }
+esp-rtos = { version = "0.3.0", features = ["defmt", "embassy"] }
+
+[features]
+default = ["esp32c3"]
+esp32c3 = [
+    "esp-hal/esp32c3",
+    "esp-rtos/esp32c3",
+    "esp-backtrace/esp32c3",
+    "esp-println/esp32c3",
+    "esp-bootloader-esp-idf/esp32c3",
+]
+esp32s3 = [
+    "esp-hal/esp32s3",
+    "esp-rtos/esp32s3",
+    "esp-backtrace/esp32s3",
+    "esp-println/esp32s3",
+    "esp-bootloader-esp-idf/esp32s3",
+]

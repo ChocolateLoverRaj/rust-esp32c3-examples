@@ -1,0 +1,25 @@
+From bf77b30abb35074ee44713f3173d9895144d5932 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bj=C3=B6rn=20Quentin?= <bjoernQ@users.noreply.github.com>
+Date: Wed, 26 Nov 2025 12:34:39 +0100
+Subject: [PATCH 1/2] Improve app-descriptor detection
+
+---
+ espflash/src/image_format/idf.rs | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/espflash/src/image_format/idf.rs b/espflash/src/image_format/idf.rs
+index 7223b260..1c8e9543 100644
+--- a/espflash/src/image_format/idf.rs
++++ b/espflash/src/image_format/idf.rs
+@@ -809,7 +809,10 @@ where
+ pub fn check_idf_bootloader(elf_data: &Vec<u8>) -> Result<()> {
+     let object = File::parse(elf_data.as_slice()).into_diagnostic()?;
+ 
+-    let has_app_desc = object.symbols().any(|sym| sym.name() == Ok("esp_app_desc"));
++    // for unknown reasons a Rust-std project with `strip = true` will discard the
++    // symbol we are looking for but the section is kept
++    let has_app_desc = object.symbols().any(|sym| sym.name() == Ok("esp_app_desc"))
++        || object.section_by_name(".flash.appdesc").is_some();
+     let is_esp_hal = object.section_by_name(".espressif.metadata").is_some();
+ 
+     if !has_app_desc {
