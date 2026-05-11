@@ -26,7 +26,7 @@ esp-bootloader-esp-idf = "0.4.0"
 esp-hal = { version = "1.0.0", features = ["defmt", "unstable"] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
-spi_sd_card = { version = "1.0.0", path = "../../spi_sd_card" }
+spi_sd_card = { version = "1.0.0", path = "../../spi_sd_card", features = ["defmt"] }
 
 [features]
 default = ["esp32c3"]

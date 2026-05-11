@@ -1229,6 +1229,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.10.0",
  "crc",
+ "defmt 1.0.1",
  "embassy-embedded-hal",
  "embassy-time",
  "embedded-hal 1.0.0",
