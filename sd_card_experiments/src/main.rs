@@ -1,14 +1,10 @@
 #![no_std]
 #![no_main]
 
-mod buffer;
-
 use collect_array_ext_trait::CollectArray;
-use defmt::{Debug2Format, info};
+use defmt::{Debug2Format, info, warn};
 use embassy_executor::Spawner;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
-use embassy_time::{Delay, Duration, Instant, TICK_HZ, Timer};
-use embedded_hal::digital::OutputPin;
+use embassy_time::{Duration, Instant, TICK_HZ, Timer};
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
@@ -21,19 +17,15 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println as _;
-use esp_println::println;
 use spi_sd_card::{
-    Acmd41Output, Command0, Command0Process, Command8, Command8Process, Command59,
-    Command59Process, Csd, CsdCommon, CsdV2, KeepAction, Ocr, R1, R3, ReadMultiCmd, ReadMultiCmd2,
-    ReadMultiItem, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
-    SimpleCommand, format_acmd_41, format_cmd_8, format_cmd_9, format_cmd_17, format_cmd_18,
-    format_cmd_55, format_cmd_58, format_cmd_59, format_command_0, prepare_command_0,
-    process_acmd_41_res, process_cmd_0_response, process_cmd_8_res, process_cmd_55_response,
-    process_cmd_59_res,
+    Acmd41Output, Cmd8Res, Csd, CsdCommon, KeepAction, Ocr, R1, R3, ReadMultiCmd, ReadMultiOutput,
+    ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess, SimpleCommand, format_acmd_41,
+    format_cmd_8, format_cmd_9, format_cmd_12, format_cmd_17, format_cmd_18, format_cmd_55,
+    format_cmd_58, format_cmd_59, format_command_0, process_acmd_41_res, process_cmd_0_response,
+    process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
 };
 use split_slice::SplitSlice;
 
-use crate::buffer::Buffer;
 // use spi_sd_card::{
 //     Action, ActionResponse, ResetAndInit, format_command, prepare_command_0, process_command_0,
 // };
@@ -73,239 +65,329 @@ async fn main(spawner: Spawner) {
     // Rounded up to 10 bytes
     spi_bus.write_async(&[0xFF; 74 / 8]).await.unwrap();
 
-    cs.set_low();
-
-    // This might help if the card was previously in the middle of something
-    // TODO: Is this needed?
-    // spi_bus.write_async(&[0xFF; 1000]).await.unwrap();
-
-    {
-        spi_bus.write_async(&format_command_0()).await.unwrap();
-        let mut c = Command0;
-        let r = loop {
-            let mut buffer = [0xFF; 1];
-            spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-            match c.process_bytes(&buffer) {
-                Command0Process::InProgress(new_c) => {
-                    c = new_c;
-                }
-                Command0Process::Done(r1) => break r1,
-            }
-        };
-        info!("cmd0 r: {:X}", Debug2Format(&r));
-        process_cmd_0_response(r).unwrap();
-    }
-
-    {
-        spi_bus.write_async(&format_cmd_59(true)).await.unwrap();
-        let mut c = Command59;
-        let r = loop {
-            let mut buffer = [0xFF; 1];
-            spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-            match c.process_bytes(&buffer) {
-                Command59Process::InProgress(new_c) => {
-                    c = new_c;
-                }
-                Command59Process::Done(r1) => break r1,
-            }
-        };
-        info!("cmd59 r: {:X}", Debug2Format(&r));
-        process_cmd_59_res(r).unwrap();
-    }
-
-    {
-        spi_bus.write_async(&format_cmd_8()).await.unwrap();
-        let mut c = Command8::default();
-        let r = loop {
-            let mut buffer = [0xFF; 1];
-            spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-            match c.process_bytes(&buffer) {
-                Command8Process::InProgress(new_c) => {
-                    c = new_c;
-                }
-                Command8Process::Done(r1) => break r1,
-            }
-        };
-        info!("cmd8 r: {:X}", Debug2Format(&r));
-        process_cmd_8_res(r).unwrap();
-    }
-
-    {
-        spi_bus.write_async(&format_cmd_58()).await.unwrap();
-        let mut c = SimpleCommand::<{ size_of::<R3>() }>::default();
-        let r = loop {
-            let mut buffer = [0xFF; 1];
-            spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-            match c.process_bytes(&buffer) {
-                SimpleCmdProcess::InProgress(new_c) => {
-                    c = new_c;
-                }
-                SimpleCmdProcess::Done(bytes) => {
-                    let r1 = bytes[0];
-                    let ocr = u32::from_be_bytes(bytes[1..5].try_into().unwrap());
-                    break R3 {
-                        r1: R1::from_bits_retain(r1),
-                        ocr: Ocr::from_bits_retain(ocr),
-                    };
-                }
-            }
-        };
-        info!("cmd58 r: {:X}", Debug2Format(&r));
-        assert!(r.ocr.supports_3_3v());
-    }
-
-    loop {
-        {
-            spi_bus.write_async(&format_cmd_55()).await.unwrap();
+    'a: loop {
+        loop {
+            cs.set_low();
+            spi_bus.write_async(&format_command_0()).await.unwrap();
             let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
-            let r = loop {
+            let r = R1::from_bits_retain(loop {
                 let mut buffer = [0xFF; 1];
                 spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
                 match c.process_bytes(&buffer) {
                     SimpleCmdProcess::InProgress(new_c) => {
+                        info!("cmd0 in progress");
                         c = new_c;
                     }
-                    SimpleCmdProcess::Done([r1]) => {
-                        break R1::from_bits_retain(r1);
-                    }
+                    SimpleCmdProcess::Done([r1]) => break r1,
                 }
-            };
-            info!("cmd55 r: {:X}", Debug2Format(&r));
-            process_cmd_55_response(r).unwrap();
-        }
-        {
-            spi_bus.write_async(&format_acmd_41()).await.unwrap();
-            let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
-            let r = loop {
-                let mut buffer = [0xFF; 1];
-                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-                match c.process_bytes(&buffer) {
-                    SimpleCmdProcess::InProgress(new_c) => {
-                        c = new_c;
-                    }
-                    SimpleCmdProcess::Done([r1]) => {
-                        break R1::from_bits_retain(r1);
-                    }
-                }
-            };
-            info!("ACMD41 r: {:X}", Debug2Format(&r));
-            let o = process_acmd_41_res(r).unwrap();
-            info!("ACMD41 o: {}", o);
-            if matches!(o, Acmd41Output::Initialized) {
+            });
+            info!("cmd0 r: {:X}", Debug2Format(&r));
+            cs.set_high();
+            spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+            if process_cmd_0_response(r).is_ok() {
                 break;
             }
         }
-    }
 
-    spi_bus
-        .apply_config(&Config::default().with_frequency(Rate::from_mhz(25)))
-        .unwrap();
-
-    {
-        spi_bus.write_async(&format_cmd_58()).await.unwrap();
-        let mut c = SimpleCommand::<{ size_of::<R3>() }>::default();
-        let r = loop {
-            let mut buffer = [0xFF; 1];
-            spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-            match c.process_bytes(&buffer) {
-                SimpleCmdProcess::InProgress(new_c) => {
-                    c = new_c;
+        cs.set_low();
+        {
+            spi_bus.write_async(&format_cmd_59(true)).await.unwrap();
+            let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
+            let r = R1::from_bits_retain(loop {
+                let mut buffer = [0xFF; 20];
+                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                match c.process_bytes(&buffer) {
+                    SimpleCmdProcess::InProgress(new_c) => {
+                        c = new_c;
+                    }
+                    SimpleCmdProcess::Done([r1]) => break r1,
                 }
-                SimpleCmdProcess::Done(bytes) => {
-                    let r1 = bytes[0];
-                    let ocr = u32::from_be_bytes(bytes[1..5].try_into().unwrap());
-                    break R3 {
-                        r1: R1::from_bits_retain(r1),
-                        ocr: Ocr::from_bits_retain(ocr),
+            });
+            info!("cmd59 r: {:X}", Debug2Format(&r));
+            process_cmd_59_res(r).unwrap();
+        }
+        cs.set_high();
+        spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+
+        cs.set_low();
+        {
+            spi_bus.write_async(&format_cmd_8()).await.unwrap();
+            let mut c = SimpleCommand::<{ size_of::<Cmd8Res>() }>::default();
+            let r = loop {
+                let mut buffer = [0xFF; 10];
+                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                match c.process_bytes(&buffer) {
+                    SimpleCmdProcess::InProgress(new_c) => {
+                        c = new_c;
+                    }
+                    SimpleCmdProcess::Done(r1) => break r1,
+                }
+            };
+            info!("cmd8 r: {:X}", Debug2Format(&r));
+            process_cmd_8_res(r).unwrap();
+        }
+        cs.set_high();
+        spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+
+        cs.set_low();
+        {
+            spi_bus.write_async(&format_cmd_58()).await.unwrap();
+            let mut c = SimpleCommand::<{ size_of::<R3>() }>::default();
+            let r = loop {
+                let mut buffer = [0xFF; 1];
+                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                match c.process_bytes(&buffer) {
+                    SimpleCmdProcess::InProgress(new_c) => {
+                        c = new_c;
+                    }
+                    SimpleCmdProcess::Done(bytes) => {
+                        let r1 = bytes[0];
+                        let ocr = u32::from_be_bytes(bytes[1..5].try_into().unwrap());
+                        break R3 {
+                            r1: R1::from_bits_retain(r1),
+                            ocr: Ocr::from_bits_retain(ocr),
+                        };
+                    }
+                }
+            };
+            info!("cmd58 r: {:X}", Debug2Format(&r));
+            assert!(r.ocr.supports_3_3v());
+        }
+        cs.set_high();
+        spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+
+        loop {
+            loop {
+                cs.set_low();
+                spi_bus.write_async(&format_cmd_55()).await.unwrap();
+                let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
+                let r = loop {
+                    let mut buffer = [0xFF; 1];
+                    spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                    match c.process_bytes(&buffer) {
+                        SimpleCmdProcess::InProgress(new_c) => {
+                            c = new_c;
+                        }
+                        SimpleCmdProcess::Done([r1]) => {
+                            break R1::from_bits_retain(r1);
+                        }
+                    }
+                };
+                cs.set_high();
+                spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+                info!("cmd55 r: {:X}", Debug2Format(&r));
+                if process_cmd_55_response(r).is_ok() {
+                    break;
+                }
+                Timer::after_millis(10).await;
+            }
+            {
+                cs.set_low();
+                spi_bus.write_async(&format_acmd_41()).await.unwrap();
+                let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
+                let r = loop {
+                    let mut buffer = [0xFF; 10];
+                    spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                    match c.process_bytes(&buffer) {
+                        SimpleCmdProcess::InProgress(new_c) => {
+                            c = new_c;
+                        }
+                        SimpleCmdProcess::Done([r1]) => {
+                            break R1::from_bits_retain(r1);
+                        }
+                    }
+                };
+                cs.set_high();
+                spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+                info!("ACMD41 r: {:X}", Debug2Format(&r));
+                if let Ok(o) = process_acmd_41_res(r) {
+                    info!("ACMD41 o: {}", o);
+                    if matches!(o, Acmd41Output::Initialized) {
+                        break;
+                    }
+                } else {
+                    Timer::after_millis(10).await;
+                }
+            }
+        }
+
+        spi_bus
+            .apply_config(&Config::default().with_frequency(Rate::from_mhz(25)))
+            .unwrap();
+
+        {
+            cs.set_low();
+            spi_bus.write_async(&format_cmd_58()).await.unwrap();
+            let mut c = SimpleCommand::<{ size_of::<R3>() }>::default();
+            let r = loop {
+                let mut buffer = [0xFF; 1];
+                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                match c.process_bytes(&buffer) {
+                    SimpleCmdProcess::InProgress(new_c) => {
+                        c = new_c;
+                    }
+                    SimpleCmdProcess::Done(bytes) => {
+                        let r1 = bytes[0];
+                        let ocr = u32::from_be_bytes(bytes[1..5].try_into().unwrap());
+                        break R3 {
+                            r1: R1::from_bits_retain(r1),
+                            ocr: Ocr::from_bits_retain(ocr),
+                        };
+                    }
+                }
+            };
+            let is_hcs = r.ocr.supports_sdhc_or_sdxc().unwrap();
+            info!("cmd58 is HCS?: {}", is_hcs);
+            cs.set_high();
+            spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+        }
+
+        {
+            let mut prev_capacity = None;
+            loop {
+                cs.set_low();
+                spi_bus.write_async(&format_cmd_9()).await.unwrap();
+                let mut c = ReadSingleCmd::new(size_of::<u128>());
+                let mut data_buffer =
+                    heapless::Vec::<_, { size_of::<u128>() + size_of::<u16>() }>::new();
+                let mut keep_started = false;
+                let mut transfer_buffer = [Default::default(); 1];
+                let result = loop {
+                    let transfer_len = if keep_started {
+                        ((size_of::<u128>() + size_of::<u16>()) - data_buffer.len())
+                            .min(transfer_buffer.len())
+                    } else {
+                        transfer_buffer.len()
                     };
-                }
-            }
-        };
-        let is_hcs = r.ocr.supports_sdhc_or_sdxc().unwrap();
-        info!("cmd58 is HCS?: {}", is_hcs);
-    }
+                    // info!(
+                    //     "transfer len: {} {} {}",
+                    //     transfer_len,
+                    //     keep_started,
+                    //     data_buffer.len()
+                    // );
+                    assert_ne!(transfer_len, 0);
+                    let mut transfer_buffer = &mut transfer_buffer[..transfer_len];
+                    transfer_buffer.fill(0xFF);
+                    spi_bus
+                        .transfer_in_place_async(&mut transfer_buffer)
+                        .await
+                        .unwrap();
+                    match c.process_bytes(transfer_buffer) {
+                        Ok(ReadSingleProcess::InProgress { cmd, keep_start }) => {
+                            c = cmd;
+                            if keep_started {
+                                data_buffer.extend_from_slice(transfer_buffer).unwrap();
+                            } else if let Some(keep_start) = keep_start {
+                                keep_started = true;
+                                data_buffer
+                                    .extend_from_slice(&transfer_buffer[keep_start..])
+                                    .unwrap();
+                            }
+                        }
+                        Ok(ReadSingleProcess::Done { bytes_processed }) => {
+                            break Ok(if keep_started {
+                                data_buffer
+                                    .extend_from_slice(&transfer_buffer[..bytes_processed])
+                                    .unwrap();
+                                &data_buffer
+                            } else {
+                                &transfer_buffer[bytes_processed
+                                    - (size_of::<u128>() + size_of::<u16>())
+                                    ..bytes_processed]
+                            });
+                        }
+                        Err(e) => {
+                            break Err(e);
+                        }
+                    }
+                };
+                cs.set_high();
+                spi_bus.write_async(&[0xFF; 1]).await.unwrap();
 
-    {
-        spi_bus.write_async(&format_cmd_9()).await.unwrap();
-        let mut c = ReadSingleCmd::new(size_of::<u128>());
-        let mut data_buffer = heapless::Vec::<_, { size_of::<u128>() + 2 }>::new();
-        let data_start = loop {
-            let mut transfer_buffer = [0xFF; 1];
-            let transfer_len = data_buffer
-                .spare_capacity_mut()
-                .len()
-                .min(transfer_buffer.len());
-            let mut transfer_buffer = &mut transfer_buffer[..transfer_len];
-            spi_bus
-                .transfer_in_place_async(&mut transfer_buffer)
-                .await
-                .unwrap();
-            let new_start = data_buffer.len();
-            data_buffer.extend_from_slice(&transfer_buffer).unwrap();
-            match c.process_bytes(&data_buffer, new_start) {
-                Ok(ReadSingleProcess::InProgress { cmd, keep_start }) => {
-                    c = cmd;
-                    data_buffer.copy_within(keep_start.., 0);
-                    data_buffer.truncate(data_buffer.len() - keep_start);
-                }
-                Ok(ReadSingleProcess::Done { data_start }) => {
-                    break Ok(data_start);
-                }
-                Err(e) => {
-                    break Err(e);
+                match result {
+                    Ok(csd_and_crc) => {
+                        let csd = &csd_and_crc[..size_of::<u128>()];
+                        let received_crc = u16::from_be_bytes(
+                            csd_and_crc[size_of::<u128>()..].try_into().unwrap(),
+                        );
+                        let mut digest = spi_sd_card::CRC.digest();
+                        digest.update(csd);
+                        let computed_crc = digest.finalize();
+                        if received_crc == computed_crc {
+                            let csd = CsdCommon::new_with_raw_value(u128::from_be_bytes(
+                                csd.try_into().unwrap(),
+                            ));
+                            let capacity = csd.card_capacity_bytes();
+                            info!("Capacity: {} B", capacity);
+                            if let Some(prev_capacity) = prev_capacity {
+                                if prev_capacity == capacity {
+                                    break 'a;
+                                } else {
+                                    warn!("Inconsistent reported capacity. Retrying...");
+                                    break;
+                                }
+                            } else {
+                                prev_capacity = Some(capacity);
+                            }
+                        } else {
+                            warn!("CMD9 CRC mismatch. Retrying...");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        warn!("CMD9 error: {}. Retrying...", Debug2Format(&e));
+                        break;
+                    }
                 }
             }
         }
-        .unwrap();
-        let csd = &data_buffer[data_start..data_start + size_of::<u128>()];
-        let csd = CsdCommon::new_with_raw_value(u128::from_be_bytes(csd.try_into().unwrap()));
-        let capacity = csd.card_capacity_bytes();
-        info!("Capacity: {} B", capacity);
     }
+    // {
+    //     cs.set_low();
+    //     let start_time = Instant::now();
+    //     spi_bus.write_async(&format_cmd_17(0)).await.unwrap();
+    //     let mut c = ReadSingleCmd::new(512);
+    //     let mut data_buffer = heapless::Vec::<_, { 512 + 2 }>::new();
+    //     let data_start = loop {
+    //         let mut transfer_buffer = [0xFF; 1];
+    //         let transfer_len = data_buffer
+    //             .spare_capacity_mut()
+    //             .len()
+    //             .min(transfer_buffer.len());
+    //         let mut transfer_buffer = &mut transfer_buffer[..transfer_len];
+    //         spi_bus
+    //             .transfer_in_place_async(&mut transfer_buffer)
+    //             .await
+    //             .unwrap();
+    //         let new_start = data_buffer.len();
+    //         data_buffer.extend_from_slice(&transfer_buffer).unwrap();
+    //         match c.process_bytes(&data_buffer, new_start) {
+    //             Ok(ReadSingleProcess::InProgress { cmd, keep_start }) => {
+    //                 c = cmd;
+    //                 data_buffer.copy_within(keep_start.., 0);
+    //                 data_buffer.truncate(data_buffer.len() - keep_start);
+    //             }
+    //             Ok(ReadSingleProcess::Done { data_start }) => {
+    //                 break Ok(data_start);
+    //             }
+    //             Err(e) => {
+    //                 break Err(e);
+    //             }
+    //         }
+    //     }
+    //     .unwrap();
+    //     let data = &data_buffer[data_start..data_start + 512];
+    //     info!(
+    //         "First block: {:X} {} us",
+    //         data,
+    //         start_time.elapsed().as_micros(),
+    //     );
+    //     cs.set_high();
+    //     spi_bus.write_async(&[0xFF; 1]).await.unwrap();
+    // }
 
     {
-        let start_time = Instant::now();
-        spi_bus.write_async(&format_cmd_17(0)).await.unwrap();
-        let mut c = ReadSingleCmd::new(512);
-        let mut data_buffer = heapless::Vec::<_, { 512 + 2 }>::new();
-        let data_start = loop {
-            let mut transfer_buffer = [0xFF; 1];
-            let transfer_len = data_buffer
-                .spare_capacity_mut()
-                .len()
-                .min(transfer_buffer.len());
-            let mut transfer_buffer = &mut transfer_buffer[..transfer_len];
-            spi_bus
-                .transfer_in_place_async(&mut transfer_buffer)
-                .await
-                .unwrap();
-            let new_start = data_buffer.len();
-            data_buffer.extend_from_slice(&transfer_buffer).unwrap();
-            match c.process_bytes(&data_buffer, new_start) {
-                Ok(ReadSingleProcess::InProgress { cmd, keep_start }) => {
-                    c = cmd;
-                    data_buffer.copy_within(keep_start.., 0);
-                    data_buffer.truncate(data_buffer.len() - keep_start);
-                }
-                Ok(ReadSingleProcess::Done { data_start }) => {
-                    break Ok(data_start);
-                }
-                Err(e) => {
-                    break Err(e);
-                }
-            }
-        }
-        .unwrap();
-        let data = &data_buffer[data_start..data_start + 512];
-        info!(
-            "First block: {:X} {}. TICK_HZ: {}",
-            data,
-            start_time.elapsed(),
-            TICK_HZ
-        );
-    }
-
-    {
+        cs.set_low();
         let start_time = Instant::now();
         let start_block_number = 2048;
         spi_bus
@@ -358,7 +440,7 @@ async fn main(spawner: Spawner) {
                         // info!("{} {}", keep_action, bytes_processed_just_now);
                         c = cmd;
                         bytes_processed += bytes_processed_just_now;
-                        bytes_waited += bytes_processed_just_now;
+                        bytes_waited += bytes_waited_just_now;
 
                         match keep_action {
                             None => {
@@ -437,14 +519,5 @@ async fn main(spawner: Spawner) {
             bytes_waited,
             bytes_transferred
         );
-    }
-
-    {
-        let start_time = Instant::now();
-        spi_bus
-            .transfer_in_place_async(&mut [0xFF; 10 * 1024])
-            .await
-            .unwrap();
-        info!("Test transfer in {} us", start_time.elapsed().as_micros());
     }
 }
