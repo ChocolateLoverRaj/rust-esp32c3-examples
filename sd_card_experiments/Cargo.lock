@@ -76,6 +76,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "collect_array_ext_trait"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ba2e83230de13abf9f0aab7b50d98ba07fb2135cb44c930de17b4bbdebaf497"
+
+[[package]]
 name = "crc"
 version = "3.4.0"
 source = "git+https://github.com/mrhooray/crc-rs#1894aa9f184d44cf1226aeb3048a3e91fc1b8df4"
@@ -1164,6 +1170,7 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 name = "sd_card_experiments"
 version = "0.1.0"
 dependencies = [
+ "collect_array_ext_trait",
  "crc",
  "defmt 1.0.1",
  "embassy-embedded-hal",
@@ -1181,6 +1188,7 @@ dependencies = [
  "esp-rtos",
  "heapless 0.9.3",
  "spi_sd_card",
+ "split_slice",
 ]
 
 [[package]]
@@ -1257,6 +1265,10 @@ dependencies = [
  "embedded-hal-async",
  "heapless 0.9.3",
 ]
+
+[[package]]
+name = "split_slice"
+version = "1.0.0"
 
 [[package]]
 name = "stable_deref_trait"

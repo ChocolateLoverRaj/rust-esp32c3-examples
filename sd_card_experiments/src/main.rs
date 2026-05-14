@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
 
+mod buffer;
+
+use collect_array_ext_trait::CollectArray;
 use defmt::{Debug2Format, info};
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -21,12 +24,16 @@ use esp_println as _;
 use esp_println::println;
 use spi_sd_card::{
     Acmd41Output, Command0, Command0Process, Command8, Command8Process, Command59,
-    Command59Process, Csd, CsdCommon, CsdV2, Ocr, R1, R3, ReadMultiCmd, ReadMultiOutput,
-    ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess, SimpleCommand, format_acmd_41,
-    format_cmd_8, format_cmd_9, format_cmd_17, format_cmd_18, format_cmd_55, format_cmd_58,
-    format_cmd_59, format_command_0, prepare_command_0, process_acmd_41_res,
-    process_cmd_0_response, process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
+    Command59Process, Csd, CsdCommon, CsdV2, KeepAction, Ocr, R1, R3, ReadMultiCmd, ReadMultiCmd2,
+    ReadMultiItem, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
+    SimpleCommand, format_acmd_41, format_cmd_8, format_cmd_9, format_cmd_17, format_cmd_18,
+    format_cmd_55, format_cmd_58, format_cmd_59, format_command_0, prepare_command_0,
+    process_acmd_41_res, process_cmd_0_response, process_cmd_8_res, process_cmd_55_response,
+    process_cmd_59_res,
 };
+use split_slice::SplitSlice;
+
+use crate::buffer::Buffer;
 // use spi_sd_card::{
 //     Action, ActionResponse, ResetAndInit, format_command, prepare_command_0, process_command_0,
 // };
@@ -70,7 +77,7 @@ async fn main(spawner: Spawner) {
 
     // This might help if the card was previously in the middle of something
     // TODO: Is this needed?
-    spi_bus.write_async(&[0xFF; 1000]).await.unwrap();
+    // spi_bus.write_async(&[0xFF; 1000]).await.unwrap();
 
     {
         spi_bus.write_async(&format_command_0()).await.unwrap();
@@ -306,59 +313,114 @@ async fn main(spawner: Spawner) {
             .await
             .unwrap();
         let mut c = ReadMultiCmd::new(512);
-        let mut data_buffer = heapless::Vec::<_, { 512 + 2 + 10 * 1024 }>::new();
+        // let mut data_buffer = Buffer::<_, { 512 + 2 + 10 * 1024 }>::new();
+        let mut buffer = [Default::default(); 512 + 2 + 10 * 1024];
+        let mut keep_start = 0;
+        let mut keep_len = 0;
+
         let mut block_number = start_block_number;
         let mut time = Duration::default();
+        let mut bytes_waited = 0;
+        let mut bytes_transferred = 0;
         'cmd_18: loop {
-            let mut transfer_buffer = [0xFF; 10 * 1024];
-            let transfer_len =
-                (data_buffer.capacity() - data_buffer.len()).min(transfer_buffer.len());
-            // info!("transfer len: {}", transfer_len);
-            let mut transfer_buffer = &mut transfer_buffer[..transfer_len];
+            let (transfer_buffer_pos, transfer_buffer_end) = if keep_start + keep_len < buffer.len()
+            {
+                (keep_start + keep_len, buffer.len())
+            } else {
+                (keep_start + keep_len - buffer.len(), keep_start)
+            };
+            let mut transfer_buffer = &mut buffer[transfer_buffer_pos..transfer_buffer_end];
+            // info!("transfer buffer len: {}", transfer_buffer.len());
+            assert_ne!(transfer_buffer.len(), 0, "{keep_start} {keep_len}");
+            transfer_buffer.fill(0xFF);
             spi_bus
                 .transfer_in_place_async(&mut transfer_buffer)
                 .await
                 .unwrap();
-            data_buffer.extend_from_slice(&transfer_buffer).unwrap();
-            let mut skip_count = 0;
-            loop {
+            bytes_transferred += transfer_buffer.len();
+            let transfer_buffer = &buffer[transfer_buffer_pos..transfer_buffer_end];
+            let mut bytes_processed = 0;
+            while bytes_processed < transfer_buffer.len() {
                 // info!(
-                //     "calling process_bytes. {} {} {}",
-                //     c,
-                //     data_buffer.len(),
-                //     skip_count
+                //     "calling process_bytes. bytes_processed: {}",
+                //     bytes_processed
                 // );
                 let t = Instant::now();
-                let result = c.process_bytes(&data_buffer[skip_count..]);
-                // info!("result: {}", result.as_ref().unwrap());
+                let result = c.process_bytes(&transfer_buffer[bytes_processed..]);
                 time += t.elapsed();
                 match result {
                     Ok(ReadMultiOutput {
                         cmd,
-                        keep_start,
-                        processed_block,
+                        keep_action,
+                        bytes_processed: bytes_processed_just_now,
+                        bytes_waited: bytes_waited_just_now,
                     }) => {
+                        // info!("{} {}", keep_action, bytes_processed_just_now);
                         c = cmd;
-                        skip_count += keep_start;
+                        bytes_processed += bytes_processed_just_now;
+                        bytes_waited += bytes_processed_just_now;
 
-                        if let Some(block) = processed_block {
-                            let data_start = block.unwrap();
-
-                            let data = &data_buffer[data_start..data_start + 512];
-
-                            info!("read block {}", block_number);
-                            // info!("Block {}: {:X}", block_number, data);
-
-                            block_number += 1;
-
-                            if block_number == start_block_number + 100 {
-                                break 'cmd_18 Ok(());
+                        match keep_action {
+                            None => {
+                                if keep_len > 0 {
+                                    keep_len += bytes_processed_just_now
+                                }
                             }
-                        } else {
-                            data_buffer.copy_within(skip_count.., 0);
-                            data_buffer.truncate(data_buffer.len() - skip_count);
-                            // Bug
-                            break;
+                            Some(KeepAction::StartKeeping { position }) => {
+                                keep_start = transfer_buffer_pos + bytes_processed
+                                    - bytes_processed_just_now
+                                    + position;
+                                keep_len = bytes_processed_just_now - position;
+                            }
+                            Some(KeepAction::Take) => {
+                                if keep_len == 0 {
+                                    keep_len = 512 + size_of::<u16>();
+                                    keep_start = transfer_buffer_pos + bytes_processed - keep_len;
+                                } else {
+                                    keep_len += bytes_processed_just_now;
+                                }
+                                let block_and_crc = if keep_start + keep_len <= buffer.len() {
+                                    SplitSlice(&buffer[keep_start..keep_start + keep_len], &[])
+                                } else {
+                                    SplitSlice(
+                                        &buffer[keep_start..],
+                                        &buffer[..keep_start + keep_len - buffer.len()],
+                                    )
+                                };
+                                // println!(
+                                //     "block_and_crc: {} + {} = {}",
+                                //     block_and_crc.0.len(),
+                                //     block_and_crc.1.len(),
+                                //     block_and_crc.len()
+                                // );
+                                let (block, crc) = block_and_crc.split_at(512);
+
+                                let mut digest = spi_sd_card::CRC.digest();
+                                digest.update(block.0);
+                                digest.update(block.1);
+                                let computed_crc = digest.finalize();
+                                let received_crc = u16::from_be_bytes(
+                                    crc.into_iter().copied().collect_array().unwrap(),
+                                );
+
+                                assert_eq!(computed_crc, received_crc);
+                                // info!(
+                                //     "read block {} {:X} {:X} {:X} {:X}",
+                                //     block_number,
+                                //     computed_crc,
+                                //     received_crc,
+                                //     block_and_crc.0,
+                                //     block_and_crc.1
+                                // );
+
+                                block_number += 1;
+
+                                keep_len = 0;
+
+                                if block_number == start_block_number + 100 {
+                                    break 'cmd_18 Ok(());
+                                }
+                            }
                         }
                     }
                     Err(e) => {
@@ -366,17 +428,14 @@ async fn main(spawner: Spawner) {
                     }
                 }
             }
-            // info!(
-            //     "Took {} us to process {} bytes",
-            //     time.as_micros(),
-            //     bytes_to_process
-            // );
         }
         .unwrap();
         info!(
-            "Read multiple in {} us, process_bytes: {} us",
+            "Read multiple in {} us, process_bytes: {} us. Bytes waited: {}. Bytes transferred: {}",
             start_time.elapsed().as_micros(),
-            time.as_micros()
+            time.as_micros(),
+            bytes_waited,
+            bytes_transferred
         );
     }
 

@@ -11,6 +11,7 @@ doctest = false
 bench = false
 
 [dependencies]
+collect_array_ext_trait = "0.2.0"
 crc = "3.4.0"
 defmt = "1.0.1"
 embassy-embedded-hal = "0.5.0"
@@ -28,6 +29,7 @@ esp-println = { version = "0.16.1", features = ["defmt-espflash"] }
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy"] }
 heapless = { version = "0.9.3", features = ["defmt"] }
 spi_sd_card = { version = "1.0.0", path = "../../spi_sd_card", features = ["defmt"] }
+split_slice = "1.0.0"
 
 [features]
 default = ["esp32c3"]
@@ -41,3 +43,10 @@ esp32c3 = [
 
 [patch.crates-io]
 crc = { git = "https://github.com/mrhooray/crc-rs" }
+split_slice = { path = "../../split_slice" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"        # Enables full Link Time Optimization
+codegen-units = 1  # Maximizes optimization opportunities
+# strip = true       # Removes debug symbols to reduce size
