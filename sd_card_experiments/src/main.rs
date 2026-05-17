@@ -4,7 +4,7 @@
 use collect_array_ext_trait::CollectArray;
 use defmt::{Debug2Format, info, warn};
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Instant, TICK_HZ, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
@@ -18,17 +18,13 @@ use esp_hal::{
 };
 use esp_println as _;
 use spi_sd_card::{
-    Acmd41Output, Cmd8Res, Csd, CsdCommon, KeepAction, Ocr, R1, R3, ReadMultiCmd, ReadMultiOutput,
-    ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess, SimpleCommand, format_acmd_41,
-    format_cmd_8, format_cmd_9, format_cmd_12, format_cmd_17, format_cmd_18, format_cmd_55,
-    format_cmd_58, format_cmd_59, format_command_0, process_acmd_41_res, process_cmd_0_response,
-    process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
+    Acmd41Output, Action, Cmd8Res, Csd, CsdCommon, Init, KeepAction, MAX_SEND_CLOCKS, Ocr, R1, R3,
+    ReadMultiCmd, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
+    SimpleCommand, TransferInfo, check_crc, format_acmd_41, format_cmd_0, format_cmd_8,
+    format_cmd_9, format_cmd_18, format_cmd_55, format_cmd_58, format_cmd_59, process_acmd_41_res,
+    process_cmd_0_response, process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
 };
 use split_slice::SplitSlice;
-
-// use spi_sd_card::{
-//     Action, ActionResponse, ResetAndInit, format_command, prepare_command_0, process_command_0,
-// };
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -61,6 +57,40 @@ async fn main(spawner: Spawner) {
 
     let mut cs = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
 
+    {
+        let mut init = Init::default();
+        let mut buffer = [Default::default(); MAX_SEND_CLOCKS];
+        loop {
+            let result = match init.action() {
+                Action::SetSpiRate(rate_hz) => {
+                    spi_bus
+                        .apply_config(&Config::default().with_frequency(Rate::from_hz(rate_hz)))
+                        .unwrap();
+                    init.did_it(None)
+                }
+                Action::SendClocks(n_bytes) => {
+                    let buffer = &mut buffer[..n_bytes];
+                    buffer.fill(0xFF);
+                    spi_bus.write_async(buffer).await.unwrap();
+                    init.did_it(None)
+                }
+                Action::SetCs(level) => {
+                    cs.set_level(level.into());
+                    init.did_it(None)
+                }
+                Action::DoTransfer(TransferInfo { min, expected }) => {
+                    buffer[..6].copy_from_slice(&init.prepare_transfer());
+                    buffer[6..expected.min(buffer.len())].fill(0xFF);
+                    loop {
+                        spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+                        init.process_bytes(&buffer);
+                    }
+                    todo!()
+                }
+            };
+        }
+    }
+
     // Send 74 clock cycles
     // Rounded up to 10 bytes
     spi_bus.write_async(&[0xFF; 74 / 8]).await.unwrap();
@@ -68,7 +98,7 @@ async fn main(spawner: Spawner) {
     'a: loop {
         loop {
             cs.set_low();
-            spi_bus.write_async(&format_command_0()).await.unwrap();
+            spi_bus.write_async(&format_cmd_0()).await.unwrap();
             let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
             let r = R1::from_bits_retain(loop {
                 let mut buffer = [0xFF; 1];
@@ -307,13 +337,8 @@ async fn main(spawner: Spawner) {
                 match result {
                     Ok(csd_and_crc) => {
                         let csd = &csd_and_crc[..size_of::<u128>()];
-                        let received_crc = u16::from_be_bytes(
-                            csd_and_crc[size_of::<u128>()..].try_into().unwrap(),
-                        );
-                        let mut digest = spi_sd_card::CRC.digest();
-                        digest.update(csd);
-                        let computed_crc = digest.finalize();
-                        if received_crc == computed_crc {
+                        let crc = csd_and_crc[size_of::<u128>()..].try_into().unwrap();
+                        if check_crc(csd, crc).is_ok() {
                             let csd = CsdCommon::new_with_raw_value(u128::from_be_bytes(
                                 csd.try_into().unwrap(),
                             ));
