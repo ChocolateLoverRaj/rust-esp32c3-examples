@@ -22,7 +22,7 @@ use spi_sd_card::{
     ReadMultiCmd, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
     SimpleCommand, TransferInfo, check_crc, format_acmd_41, format_cmd_0, format_cmd_8,
     format_cmd_9, format_cmd_18, format_cmd_55, format_cmd_58, format_cmd_59, process_acmd_41_res,
-    process_cmd_0_response, process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
+    process_cmd_0_res, process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
 };
 use split_slice::SplitSlice;
 
@@ -55,41 +55,41 @@ async fn main(spawner: Spawner) {
     .with_buffers(dma_rx_buf, dma_tx_buf)
     .into_async();
 
-    let mut cs = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
+    let mut cs = Output::new(peripherals.GPIO10, Level::High, OutputConfig::default());
 
-    {
-        let mut init = Init::default();
-        let mut buffer = [Default::default(); MAX_SEND_CLOCKS];
-        loop {
-            let result = match init.action() {
-                Action::SetSpiRate(rate_hz) => {
-                    spi_bus
-                        .apply_config(&Config::default().with_frequency(Rate::from_hz(rate_hz)))
-                        .unwrap();
-                    init.did_it(None)
-                }
-                Action::SendClocks(n_bytes) => {
-                    let buffer = &mut buffer[..n_bytes];
-                    buffer.fill(0xFF);
-                    spi_bus.write_async(buffer).await.unwrap();
-                    init.did_it(None)
-                }
-                Action::SetCs(level) => {
-                    cs.set_level(level.into());
-                    init.did_it(None)
-                }
-                Action::DoTransfer(TransferInfo { min, expected }) => {
-                    buffer[..6].copy_from_slice(&init.prepare_transfer());
-                    buffer[6..expected.min(buffer.len())].fill(0xFF);
-                    loop {
-                        spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-                        init.process_bytes(&buffer);
-                    }
-                    todo!()
-                }
-            };
-        }
-    }
+    // {
+    //     let mut init = Init::default();
+    //     let mut buffer = [Default::default(); MAX_SEND_CLOCKS];
+    //     loop {
+    //         let result = match init.action() {
+    //             Action::SetSpiRate(rate_hz) => {
+    //                 spi_bus
+    //                     .apply_config(&Config::default().with_frequency(Rate::from_hz(rate_hz)))
+    //                     .unwrap();
+    //                 init.did_it(None)
+    //             }
+    //             Action::SendClocks(n_bytes) => {
+    //                 let buffer = &mut buffer[..n_bytes];
+    //                 buffer.fill(0xFF);
+    //                 spi_bus.write_async(buffer).await.unwrap();
+    //                 init.did_it(None)
+    //             }
+    //             Action::SetCs(level) => {
+    //                 cs.set_level(level.into());
+    //                 init.did_it(None)
+    //             }
+    //             Action::DoTransfer(TransferInfo { min, expected }) => {
+    //                 buffer[..6].copy_from_slice(&init.prepare_transfer());
+    //                 buffer[6..expected.min(buffer.len())].fill(0xFF);
+    //                 loop {
+    //                     spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+    //                     init.process_bytes(&buffer);
+    //                 }
+    //                 todo!()
+    //             }
+    //         };
+    //     }
+    // }
 
     // Send 74 clock cycles
     // Rounded up to 10 bytes
@@ -100,7 +100,7 @@ async fn main(spawner: Spawner) {
             cs.set_low();
             spi_bus.write_async(&format_cmd_0()).await.unwrap();
             let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
-            let r = R1::from_bits_retain(loop {
+            let r = loop {
                 let mut buffer = [0xFF; 1];
                 spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
                 match c.process_bytes(&buffer) {
@@ -110,11 +110,11 @@ async fn main(spawner: Spawner) {
                     }
                     SimpleCmdProcess::Done([r1]) => break r1,
                 }
-            });
-            info!("cmd0 r: {:X}", Debug2Format(&r));
+            };
+            info!("cmd0 r: {:010b}", Debug2Format(&r));
             cs.set_high();
             spi_bus.write_async(&[0xFF; 1]).await.unwrap();
-            if process_cmd_0_response(r).is_ok() {
+            if process_cmd_0_res(r).is_ok() {
                 break;
             }
         }
@@ -242,7 +242,7 @@ async fn main(spawner: Spawner) {
         }
 
         spi_bus
-            .apply_config(&Config::default().with_frequency(Rate::from_mhz(25)))
+            .apply_config(&Config::default().with_frequency(Rate::from_mhz(60)))
             .unwrap();
 
         {
