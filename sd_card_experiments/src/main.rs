@@ -18,11 +18,12 @@ use esp_hal::{
 };
 use esp_println as _;
 use spi_sd_card::{
-    Acmd41Output, Action, Cmd8Res, Csd, CsdCommon, Init, KeepAction, MAX_SEND_CLOCKS, Ocr, R1, R3,
-    ReadMultiCmd, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
-    SimpleCommand, TransferInfo, check_crc, format_acmd_41, format_cmd_0, format_cmd_8,
-    format_cmd_9, format_cmd_18, format_cmd_55, format_cmd_58, format_cmd_59, process_acmd_41_res,
-    process_cmd_0_res, process_cmd_8_res, process_cmd_55_response, process_cmd_59_res,
+    Acmd41Output, Action, Cmd0, Cmd0O, Cmd8Res, Csd, CsdCommon, Init, KeepAction, MAX_SEND_CLOCKS,
+    Ocr, R1, R3, ReadMultiCmd, ReadMultiOutput, ReadSingleCmd, ReadSingleProcess, SimpleCmdProcess,
+    SimpleCommand, TransferInfo, TransferInfo2, check_crc, format_acmd_41, format_cmd_0,
+    format_cmd_8, format_cmd_9, format_cmd_18, format_cmd_55, format_cmd_58, format_cmd_59,
+    process_acmd_41_res, process_cmd_0_res, process_cmd_8_res, process_cmd_55_response,
+    process_cmd_59_res,
 };
 use split_slice::SplitSlice;
 
@@ -98,26 +99,54 @@ async fn main(spawner: Spawner) {
     'a: loop {
         loop {
             cs.set_low();
-            spi_bus.write_async(&format_cmd_0()).await.unwrap();
-            let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
+            // spi_bus.write_async(&format_cmd_0()).await.unwrap();
+            // let mut c = SimpleCommand::<{ size_of::<R1>() }>::default();
+            // let r = loop {
+            //     let mut buffer = [0xFF; 1];
+            //     spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
+            //     match c.process_bytes(&buffer) {
+            //         SimpleCmdProcess::InProgress(new_c) => {
+            //             info!("cmd0 in progress");
+            //             c = new_c;
+            //         }
+            //         SimpleCmdProcess::Done([r1]) => break r1,
+            //     }
+            // };
+            // info!("cmd0 r: {:010b}", Debug2Format(&r));
+
+            let mut c = Cmd0::default();
             let r = loop {
-                let mut buffer = [0xFF; 1];
-                spi_bus.transfer_in_place_async(&mut buffer).await.unwrap();
-                match c.process_bytes(&buffer) {
-                    SimpleCmdProcess::InProgress(new_c) => {
-                        info!("cmd0 in progress");
+                let mut buffer = [Default::default(); 100];
+                let TransferInfo2 {
+                    write_count,
+                    transfer_min,
+                    transfer_expected,
+                    transfer_max,
+                } = c.transfer();
+                let buffer = &mut buffer[..transfer_expected];
+                c.prepare_buffer(&mut buffer[..write_count]);
+                buffer[write_count..].fill(0xFF);
+                spi_bus.transfer_in_place_async(buffer).await.unwrap();
+                info!("buffer: {:X}", buffer);
+                let o = c.process_data(buffer);
+                info!("o: {}", o);
+                match o {
+                    Cmd0O::InProgress(new_c) => {
                         c = new_c;
                     }
-                    SimpleCmdProcess::Done([r1]) => break r1,
+                    Cmd0O::Done(result) => break result,
                 }
             };
-            info!("cmd0 r: {:010b}", Debug2Format(&r));
+
             cs.set_high();
             spi_bus.write_async(&[0xFF; 1]).await.unwrap();
-            if process_cmd_0_res(r).is_ok() {
+            if let Ok(r) = r
+                && process_cmd_0_res(r).is_ok()
+            {
                 break;
             }
         }
+        info!("done with cmd 0");
 
         cs.set_low();
         {
